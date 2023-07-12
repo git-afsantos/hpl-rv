@@ -50,7 +50,10 @@ setup(
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     include_package_data=True,
-    package_data={},  # {PYTHON_PKG: ['dir/*.file']},
+    package_data={
+        PYTHON_PKG: ['templates/*.jinja'],
+        f'{PYTHON_PKG}.dashboard': ['client'],
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
