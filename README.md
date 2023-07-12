@@ -1,8 +1,9 @@
 # HPL Runtime Verification
 
-This project provides a tools from which you can build and manage runtime monitors based on HPL properties.
+This project provides a tools from which you can build and manage runtime monitors based on [HPL properties](https://github.com/git-afsantos/hpl-specs/).
 
 - [Installation](#installation)
+- [Usage](#usage)
 - [GitHub Features](#github-features)
 - [Tooling](#tooling)
 
@@ -12,6 +13,23 @@ Install this package with
 
 ```
 pip install hpl-rv
+```
+
+## Usage
+
+When used as a library, you can generate Python code for a runtime monitor class with a few simple steps.
+For example:
+
+```python
+from hpl.parser import property_parser
+from hplrv.rendering import TemplateRenderer
+
+p = property_parser()
+r = TemplateRenderer()
+input_property = 'globally: no (/a or /b)'
+hpl_property = p.parse(input_property)
+code = r.render_monitor(hpl_property)
+print(code)
 ```
 
 ## GitHub Features
