@@ -1,0 +1,332 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{% import 'predicates.python.jinja' as P %}
+
+{# P.inline_predicate(pred_ast_node, cur_msg_var_name) #}
+
+{##############################################################################}
+{# GLOBAL VARIABLES #}
+{##############################################################################}
+
+{% set STATE_OFF = 0 %}
+{% set STATE_TRUE = -1 %}
+{% set STATE_FALSE = -2 %}
+{% set STATE_INACTIVE = 1 %}
+{% set STATE_ACTIVE = 2 %}
+{% set STATE_SAFE = 3 %}
+
+{% set EVENT_OTHER = 0 %}
+{% set EVENT_ACTIVATOR = 1 %}
+{% set EVENT_TERMINATOR = 2 %}
+{% set EVENT_BEHAVIOUR = 3 %}
+{% set EVENT_TRIGGER = 4 %}
+
+{% set CALLBACK_TIMER = 1 %}
+{% set CALLBACK_MSG = 2 %}
+
+{##############################################################################}
+{# STATE MACHINE MONITOR CLASS #}
+{##############################################################################}
+
+{# from __future__ import unicode_literals #}
+{# from builtins import object #}
+{# from collections import deque, namedtuple #}
+{# from threading import Lock #}
+
+{# MsgRecord = namedtuple("MsgRecord", ('topic', 'timestamp', 'msg')) #}
+
+{# meant to be used with call #}
+{% macro state_machine(sm) -%}
+class {{ sm.class_name }}(object):
+    __slots__ = (
+        '_lock',          # concurrency control
+        '_state',         # currently active state
+        {% if sm.pool_size != 0 %}
+        '_pool',          # MsgRecord deque to hold temporary records
+        {% endif %}
+        'witness',        # MsgRecord list of observed events
+        'on_enter_scope', # callback upon entering the scope
+        'on_exit_scope',  # callback upon exiting the scope
+        'on_violation',   # callback upon verdict of False
+        'on_success',     # callback upon verdict of True
+        'time_launch',    # when was the monitor launched
+        'time_shutdown',  # when was the monitor shutdown
+        'time_state',     # when did the last state transition occur
+        'cb_map',         # mapping of topic names to callback functions
+    )
+
+    PROP_ID = '{{ sm.property_id }}'
+    PROP_TITLE = '''{{ sm.property_title|d('HPL Property') }}'''
+    PROP_DESC = '''{{ sm.property_desc|d('') }}'''
+    HPL_PROPERTY = r'''{{ sm.property_text }}'''
+
+    def __init__(self):
+        self._lock = Lock()
+        self._reset()
+        self.on_enter_scope = self._noop
+        self.on_exit_scope = self._noop
+        self.on_violation = self._noop
+        self.on_success = self._noop
+        self._state = {{ STATE_OFF }}
+        self.cb_map = {
+            {# -#}
+        {% for topic in sm.on_msg %}
+            '{{ topic }}': self.on_msg_{{ topic|replace('/', '_') }},
+        {% endfor %}
+        }
+
+    @property
+    def verdict(self):
+        # with self._lock:
+        s = self._state
+        if s == {{ STATE_TRUE }}:
+            return True
+        if s == {{ STATE_FALSE }}:
+            return False
+        return None
+
+    @property
+    def is_online_state(self):
+        # with self._lock:
+        s = self._state
+        return s != {{ STATE_OFF }}
+
+    @property
+    def is_inactive_state(self):
+        # with self._lock:
+        return self._state == {{ STATE_INACTIVE }}
+
+    @property
+    def is_active_state(self):
+        # with self._lock:
+        return self._state == {{ STATE_ACTIVE }}
+
+    @property
+    def is_safe_state(self):
+        # with self._lock:
+        return self._state == {{ STATE_SAFE }}
+
+    @property
+    def is_falsifiable_state(self):
+        # with self._lock:
+        return self._state == {{ STATE_ACTIVE }}
+
+    def on_launch(self, stamp):
+        with self._lock:
+            if self._state != {{ STATE_OFF }}:
+                raise RuntimeError('monitor is already turned on')
+            self._reset()
+            self.time_launch = stamp
+            {{ change_to_state(sm.initial_state, returns=false, enters_scope=sm.launch_enters_scope)|indent(12) }}{#- #}
+        return True
+
+    def on_shutdown(self, stamp):
+        with self._lock:
+            if self._state == {{ STATE_OFF }}:
+                raise RuntimeError('monitor is already turned off')
+            self.time_shutdown = stamp
+            {{ change_to_state(STATE_OFF, returns=false)|indent(12) }}{#- #}
+        return True
+
+    def on_timer(self, stamp):
+        {% if sm.timeout > 0.0 %}
+        with self._lock:
+{{ caller(CALLBACK_TIMER)|indent(12, first=true) }}
+        {%- endif %}
+        return True
+    {# -#}
+{% for topic, states in sm.on_msg.items() %}
+
+    def on_msg_{{ topic|replace('/', '_') }}(self, msg, stamp):
+        with self._lock:
+            {% if sm.timeout > 0.0 %}
+{{ caller(CALLBACK_TIMER)|indent(12, first=true) }}
+            {%- endif %}
+            {% for state, events in states.items() %}
+            if self._state == {{ state }}:
+                {% for event in events %}{# -#}
+{{ caller(CALLBACK_MSG, event, topic, state)|indent(16, first=true) }}
+                {% endfor %}
+            {% endfor %}
+        return False
+{% endfor %}
+
+    def _reset(self):
+        self.witness = []
+        {% if sm.pool_size < 0 %}
+        self._pool = deque()
+        {% elif sm.pool_size > 0 %}
+        self._pool = deque((), {{ sm.pool_size }})
+        {% endif %}
+        self.time_launch = -1
+        self.time_shutdown = -1
+        self.time_state = -1
+
+{% if sm.pool_size != 0 and sm.pool_size != 1 %}
+    def _pool_insert(self, rec):
+        # this method is only needed to ensure Python 2.7 compatibility
+        if not self._pool:
+            return self._pool.append(rec)
+        stamp = rec.timestamp
+        if len(self._pool) == 1:
+            if stamp >= self._pool[0].timestamp:
+                return self._pool.append(rec)
+            return self._pool.appendleft(rec)
+        for i in range(len(self._pool), 0, -1):
+            if stamp >= self._pool[i-1].timestamp:
+                try:
+                    self._pool.insert(i, rec) # Python >= 3.5
+                except AttributeError as e:
+                    tmp = [self._pool.pop() for j in range(i, len(self._pool))]
+                    self._pool.append(rec)
+                    self._pool.extend(reversed(tmp))
+                break
+        else:
+            self._pool.appendleft(rec)
+{% endif %}
+
+    def _noop(self, *args):
+        pass
+{%- endmacro %}
+
+
+{##############################################################################}
+{# COMMON EVENTS #}
+{##############################################################################}
+
+{% macro activator_event(event, topic, s=STATE_ACTIVE) -%}
+    {% call change_to_state_if(event.predicate, s, enters_scope=true) %}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+    {%- endcall %}
+{%- endmacro %}
+
+{% macro terminator_event(sm, event, topic) -%}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator event'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% if event.verdict == true %}
+        {% call change_to_state_if(event.predicate, STATE_TRUE, exits_scope=true) %}
+{{ clear_pool(sm) }}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+        {%- endcall %}
+    {% elif event.verdict == false %}
+        {% call change_to_state_if(event.predicate, STATE_FALSE, exits_scope=true) %}
+{{ pool_to_witness(sm) }}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+        {%- endcall %}
+    {% else %}
+        {% call change_to_state_if(event.predicate, STATE_INACTIVE, exits_scope=true) %}
+{{ clear_pool(sm) }}
+self.witness = []
+        {%- endcall %}
+    {% endif %}
+{%- endmacro %}
+
+{##############################################################################}
+{# STATE JUMPING #}
+{##############################################################################}
+
+{# assume: local('stamp') #}
+{# 's': int #}
+{% macro change_to_state(s, returns=true, enters_scope=false, exits_scope=false) %}
+self._state = {{ s }}
+self.time_state = stamp
+{% if enters_scope %}
+self.on_enter_scope(stamp)
+{% elif exits_scope %}
+self.on_exit_scope(stamp)
+{% endif %}
+{% if s == STATE_TRUE %}
+self.on_success(stamp, self.witness)
+{% elif s == STATE_FALSE %}
+self.on_violation(stamp, self.witness)
+{% endif %}
+{% if returns %}
+return True
+{%- endif %}
+{% endmacro %}
+
+{# assume: call #}
+{# 'phi': HplPredicate #}
+{# 's': int #}
+{% macro change_to_state_if(phi, s, returns=true, enters_scope=false, exits_scope=false) -%}
+{% if phi.is_vacuous -%}
+    {% if phi.is_true -%}
+{{ caller() }}
+{{ change_to_state(s, returns=returns, enters_scope=enters_scope, exits_scope=exits_scope) }}
+    {%- else -%}
+pass # predicate is always False
+    {%- endif %}
+{%- else -%}
+if {{ P.inline_predicate(phi, 'msg') }}:
+{{ caller()|indent(4, first=true) }}
+{{ change_to_state(s, returns=returns, enters_scope=enters_scope, exits_scope=exits_scope)|indent(4, first=true) }}
+{%- endif %}
+{%- endmacro %}
+
+{##############################################################################}
+{# CONTROL FLOW #}
+{##############################################################################}
+
+{% macro do_if(phi, returns=true) -%}
+{% if phi.is_vacuous -%}
+    {% if phi.is_true -%}
+{{ caller() }}
+        {% if returns -%}
+return True
+        {%- endif %}
+    {%- else -%}
+pass # predicate is always False
+    {%- endif %}
+{%- else -%}
+if {{ P.inline_predicate(phi, 'msg') }}:
+{{ caller()|indent(4, first=true) }}
+    {% if returns %}
+    return True
+    {%- endif %}
+{%- endif %}
+{%- endmacro %}
+
+{##############################################################################}
+{# MESSAGE POOL MANAGEMENT #}
+{##############################################################################}
+
+{% macro add_to_pool(sm, topic) -%}
+{% if sm.pool_size == 0 %}
+# there is no pool to add this message to
+{%- elif sm.pool_size == 1 -%}
+self._pool.append(MsgRecord('{{ topic }}', stamp, msg))
+{%- else -%}
+rec = MsgRecord('{{ topic }}', stamp, msg)
+self._pool_insert(rec)
+{%- endif %}
+{%- endmacro %}
+
+{% macro clear_pool(sm) -%}
+{% if sm.pool_size != 0 %}
+self._pool.clear()
+{%- else %}
+# there is no record pool to clear
+{%- endif %}
+{%- endmacro %}
+
+{% macro pool_to_witness(sm) -%}
+{% if sm.pool_size != 0 %}
+self.witness.extend(self._pool)
+self._pool.clear()
+{%- else %}
+# there is no record pool to clear
+{%- endif %}
+{%- endmacro %}
+
+{% macro clear_pool_new(sm) -%}
+{% if sm.pool_size < 0 %}
+self._pool = deque()
+{%- elif sm.pool_size > 0 %}
+self._pool = deque((), {{ sm.pool_size }})
+{%- else %}
+# there is no record pool to clear
+{%- endif %}
+{%- endmacro %}

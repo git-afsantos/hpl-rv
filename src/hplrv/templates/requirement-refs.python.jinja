@@ -1,0 +1,106 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{% import 'common.python.jinja' as G %}
+{% import 'predicates.python.jinja' as P %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+{% macro _on_timer(sm) %}
+{# this template assumes some references to EVENT_TRIGGER #}
+{# there is no STATE_SAFE and self._pool is unbounded #}
+{# if there is a timeout, we must drop old trigger entries #}
+if self._state == {{ G.STATE_ACTIVE }}:
+    while self._pool and (stamp - self._pool[0].timestamp) >= {{ sm.timeout }}:
+        self._pool.popleft()
+{% endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+{% macro _on_msg(sm, event, topic) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_TRIGGER %}
+{{ _trigger(sm, event, topic) }}
+{%- else %}
+assert False, 'unexpected event type: {{ event.event_type }}'
+{%- endif %}
+{%- endmacro %}
+
+{% macro _behaviour(sm, event, topic) -%}
+    {# there are references to EVENT_TRIGGER in this template #}
+    {# we check if any message in the pool satisfies the predicate #}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% call G.change_to_state_if(event.predicate, G.STATE_FALSE) %}
+{{ _check_trigger(sm) }}{# -#}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+    {%- endcall %}
+{%- endmacro %}
+
+{% macro _check_trigger(sm) -%}
+for rec in self._pool:
+    v_1 = rec.msg
+    {% if sm.trigger_is_simple %}
+        {% for phi in sm.dependent_predicates.values() %}
+{{ _drop_if(phi)|indent(4, first=true) }}
+        {% endfor %}
+    {%- else %}
+        {% for topic, phi in sm.dependent_predicates.items() %}
+    if rec.topic == '{{ topic }}':
+{{ _drop_if(phi)|indent(8, first=true) }}
+        {% endfor %}
+    {%- endif %}
+{%- endmacro %}
+
+{% macro _drop_if(phi) -%}
+{% if phi.is_vacuous -%}
+    {% if phi.is_true -%}
+return False
+    {%- else -%}
+pass # predicate is always False
+    {%- endif %}
+{%- else -%}
+if {{ P.inline_predicate(phi, 'msg') }}:
+    return False
+{%- endif %}
+{%- endmacro %}
+
+{% macro _trigger(sm, event, topic) -%}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+    {%- endcall %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+    {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+    {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1]) }}
+    {%- else -%}
+assert False, 'unexpected macro function type: {{ args }}'
+    {%- endif %}
+{%- endcall %}

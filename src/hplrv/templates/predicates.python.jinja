@@ -1,0 +1,505 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{##############################################################################}
+{# PUBLIC MACROS #}
+{##############################################################################}
+
+{# Receives a HplPredicate object. #}
+{% macro inline_predicate(pred, msg) -%}
+{% if pred.is_vacuous -%}
+    {% if pred.is_true -%}
+True
+    {%- else -%}
+False
+    {%- endif %}
+{%- else -%}
+{{ _inline_expression(pred.condition, msg) }}
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# BIG SWITCH #}
+{##############################################################################}
+
+{% macro _inline_expression(expr, msg) -%}
+{% if expr.is_value -%}
+{{ _values(expr, msg) }}
+{%- elif expr.is_accessor -%}
+{{ _accessors(expr, msg) }}
+{%- elif expr.is_operator -%}
+{{ _operators(expr, msg) }}
+{%- elif expr.is_function_call -%}
+{{ _fun_call(expr, msg) }}
+{%- elif expr.is_quantifier -%}
+{{ _quantifier(expr, msg) }}
+{%- else -%}
+ValueError("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _values(expr, msg) -%}
+{% if expr.is_literal -%}
+{{ _literal(expr) }}
+{%- elif expr.is_set -%}
+{{ _set_literal(expr, msg) }}
+{%- elif expr.is_range -%}
+{{ _range_literal(expr, msg) }}
+{%- elif expr.is_reference -%}
+    {% if expr.is_this_msg -%}
+{{ _this_message(expr, msg) }}
+    {%- elif expr.is_variable -%}
+{{ _var_reference(expr) }}
+    {%- else -%}
+ValueError("{{ expr }}")
+    {%- endif %}
+{%- else -%}
+ValueError("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _accessors(expr, msg) -%}
+{% if expr.is_field -%}
+{{ _field_access(expr, msg) }}
+{%- elif expr.is_indexed -%}
+{{ _array_access(expr, msg) }}
+{%- else -%}
+ValueError("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _operators(expr, msg) -%}
+{% if expr.arity == 1 -%}
+{{ _unary_op(expr, msg) }}
+{%- elif expr.arity == 2 -%}
+{{ _binary_op(expr, msg) }}
+{%- else -%}
+ValueError("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# ATOMIC VALUES #}
+{##############################################################################}
+
+{% macro _literal(v) -%}
+{{ v.value }}
+{%- endmacro %}
+
+{% macro _this_message(v, msg) -%}
+{{ msg }}
+{%- endmacro %}
+
+{% macro _var_reference(v) -%}
+v_{{ v.name }}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# COMPOUND VALUES #}
+{##############################################################################}
+
+{% macro _set_literal(v, msg) -%}
+{% set comma = joiner(', ') %}
+({% for value in v.values %}{# -#}
+{{ comma() }}{{ _inline_expression(value, msg) }}{# -#}
+{% endfor %})
+{%- endmacro %}
+
+{% macro _range_literal(v, msg) -%}
+{% set l -%}
+int({{ _inline_expression(v.min_value, msg) }}){# -#}
+    {% if v.exclude_min -%}
++1
+    {%- endif %}
+{%- endset %}
+{% set h -%}
+int({{ _inline_expression(v.max_value, msg) }}){# -#}
+    {% if not v.exclude_max -%}
++1
+    {%- endif %}
+{%- endset %}
+range({{ l }}, {{ h }})
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MESSAGE FIELD ACCESS #}
+{##############################################################################}
+
+{% macro _field_access(ref, msg) -%}
+{{ _inline_expression(ref.message, msg) }}.{{ ref.field }}
+{%- endmacro %}
+
+{% macro _array_access(ref, msg) -%}
+{{ _inline_expression(ref.array, msg) }}{# -#}
+[{{ _inline_expression(ref.index, msg) }}]
+{%- endmacro %}
+
+
+{##############################################################################}
+{# OPERATORS AND FUNCTIONS #}
+{##############################################################################}
+
+{% macro _unary_op(op, msg) -%}
+{% if op.operator == '-' -%}
+-{{ _inline_expression(op.operand, msg) }}
+{%- else -%}
+({{ op.operator }} {{ _inline_expression(op.operand, msg) }})
+{%- endif %}
+{%- endmacro %}
+
+{% macro _binary_op(op, msg) -%}
+{% set a = _inline_expression(op.operand1, msg) %}
+{% set b = _inline_expression(op.operand2, msg) %}
+{% if op.operator == 'implies' -%}
+(not {{ a }} or {{ b }})
+{%- elif op.operator == 'iff' -%}
+({{ a }} is {{ b }})
+{%- elif op.operator == '=' -%}
+({{ a }} == {{ b }})
+{%- elif op.operator == 'in' and op.operand2.is_value and op.operand2.is_range -%}
+    {% if op.operand2.exclude_min -%}
+        {% set lop = '>' %}
+    {%- else -%}
+        {% set lop = '>=' %}
+    {%- endif %}
+    {% if op.operand2.exclude_max -%}
+        {% set rop = '<' %}
+    {%- else -%}
+        {% set rop = '<=' %}
+    {%- endif %}
+    {% set lb = _inline_expression(op.operand2.min_value, msg) %}
+    {% set ub = _inline_expression(op.operand2.max_value, msg) %}
+({{ a }} {{ lop }} {{ lb }} and {{ a }} {{ rop }} {{ ub }})
+{%- else -%}
+    {%- if op.infix -%}
+({{ a }} {{ op.operator }} {{ b }})
+    {%- else -%}
+{{ op.operator }}({{ a }}, {{ b }})
+    {%- endif %}
+{%- endif %}
+{%- endmacro %}
+
+{# ensure that math functions are available #}
+{% macro _fun_call(f, msg) -%}
+{% if f.function == 'log' -%}
+{{ _function_log(f, msg) }}
+{%- elif f.function == 'x' -%}
+{{ _function_x(f, msg) }}
+{%- elif f.function == 'y' -%}
+{{ _function_y(f, msg) }}
+{%- elif f.function == 'z' -%}
+{{ _function_z(f, msg) }}
+{%- elif f.function == 'roll' -%}
+{{ _function_roll(f, msg) }}
+{%- elif f.function == 'pitch' -%}
+{{ _function_pitch(f, msg) }}
+{%- elif f.function == 'yaw' -%}
+{{ _function_yaw(f, msg) }}
+{%- else -%}
+    {% if f.function == 'deg' -%}
+{% set name = 'degrees' %}
+    {%- elif f.function == 'rad' -%}
+{% set name = 'radians' %}
+    {%- else -%}
+{% set name = f.function %}
+    {%- endif %}
+{% set comma = joiner(', ') %}
+{{ name }}{# -#}
+({% for arg in f.arguments %}{# -#}
+{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{% endfor %})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _function_log(f, msg) -%}
+{% set b = f.arguments[1] %}
+{% if b.is_value and b.is_literal and b.value == 10 -%}
+log10({{ _inline_expression(f.arguments[0], msg) }})
+{%- else -%}
+log({{ _inline_expression(f.arguments[0], msg) }}, {# -#}
+    {{ _inline_expression(b, msg) }})
+{%- endif %}
+{%- endmacro %}
+
+{% macro _function_x(f, msg) -%}
+{% set arg = f.arguments[0] %}
+{% if arg.ros_type == none -%}
+{{ _inline_expression(arg, msg) }}.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
+{{ _inline_expression(arg, msg) }}.point.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+{{ _inline_expression(arg, msg) }}.position.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.pose.position.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+{{ _inline_expression(arg, msg) }}.quaternion.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+{{ _inline_expression(arg, msg) }}.translation.x
+{%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+{{ _inline_expression(arg, msg) }}.transform.translation.x
+{%- else -%}
+{{ _inline_expression(arg, msg) }}.x
+{%- endif %}
+{%- endmacro %}
+
+{% macro _function_y(f, msg) -%}
+{% set arg = f.arguments[0] %}
+{% if arg.ros_type == none -%}
+{{ _inline_expression(arg, msg) }}.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
+{{ _inline_expression(arg, msg) }}.point.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+{{ _inline_expression(arg, msg) }}.position.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.pose.position.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+{{ _inline_expression(arg, msg) }}.quaternion.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+{{ _inline_expression(arg, msg) }}.translation.y
+{%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+{{ _inline_expression(arg, msg) }}.transform.translation.y
+{%- else -%}
+{{ _inline_expression(arg, msg) }}.y
+{%- endif %}
+{%- endmacro %}
+
+{% macro _function_z(f, msg) -%}
+{% set arg = f.arguments[0] %}
+{% if arg.ros_type == none -%}
+{{ _inline_expression(arg, msg) }}.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
+{{ _inline_expression(arg, msg) }}.point.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+{{ _inline_expression(arg, msg) }}.position.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+{{ _inline_expression(arg, msg) }}.pose.position.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+{{ _inline_expression(arg, msg) }}.pose.pose.position.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+{{ _inline_expression(arg, msg) }}.quaternion.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+{{ _inline_expression(arg, msg) }}.translation.z
+{%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+{{ _inline_expression(arg, msg) }}.transform.translation.z
+{%- else -%}
+{{ _inline_expression(arg, msg) }}.z
+{%- endif %}
+{%- endmacro %}
+
+{% macro _function_roll(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set arg = f.arguments[0] %}
+    {% set obj = _inline_expression(arg, msg) %}
+    {% if arg.ros_type == none -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+        {% set x = obj ~ '.orientation.x' %}
+        {% set y = obj ~ '.orientation.y' %}
+        {% set z = obj ~ '.orientation.z' %}
+        {% set w = obj ~ '.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+        {% set x = obj ~ '.pose.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+        {% set x = obj ~ '.quaternion.x' %}
+        {% set y = obj ~ '.quaternion.y' %}
+        {% set z = obj ~ '.quaternion.z' %}
+        {% set w = obj ~ '.quaternion.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+        {% set x = obj ~ '.rotation.x' %}
+        {% set y = obj ~ '.rotation.y' %}
+        {% set z = obj ~ '.rotation.z' %}
+        {% set w = obj ~ '.rotation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+        {% set x = obj ~ '.transform.rotation.x' %}
+        {% set y = obj ~ '.transform.rotation.y' %}
+        {% set z = obj ~ '.transform.rotation.z' %}
+        {% set w = obj ~ '.transform.rotation.w' %}
+    {%- else -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- endif %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x }} + {{ y }} * {{ y }}))
+{%- endmacro %}
+
+{% macro _function_pitch(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set arg = f.arguments[0] %}
+    {% set obj = _inline_expression(arg, msg) %}
+    {% if arg.ros_type == none -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+        {% set x = obj ~ '.orientation.x' %}
+        {% set y = obj ~ '.orientation.y' %}
+        {% set z = obj ~ '.orientation.z' %}
+        {% set w = obj ~ '.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+        {% set x = obj ~ '.pose.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+        {% set x = obj ~ '.quaternion.x' %}
+        {% set y = obj ~ '.quaternion.y' %}
+        {% set z = obj ~ '.quaternion.z' %}
+        {% set w = obj ~ '.quaternion.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+        {% set x = obj ~ '.rotation.x' %}
+        {% set y = obj ~ '.rotation.y' %}
+        {% set z = obj ~ '.rotation.z' %}
+        {% set w = obj ~ '.rotation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+        {% set x = obj ~ '.transform.rotation.x' %}
+        {% set y = obj ~ '.transform.rotation.y' %}
+        {% set z = obj ~ '.transform.rotation.z' %}
+        {% set w = obj ~ '.transform.rotation.w' %}
+    {%- else -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- endif %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
+{%- endmacro %}
+
+{% macro _function_yaw(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set arg = f.arguments[0] %}
+    {% set obj = _inline_expression(arg, msg) %}
+    {% if arg.ros_type == none -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
+        {% set x = obj ~ '.orientation.x' %}
+        {% set y = obj ~ '.orientation.y' %}
+        {% set z = obj ~ '.orientation.z' %}
+        {% set w = obj ~ '.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
+        {% set x = obj ~ '.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
+        {% set x = obj ~ '.pose.pose.orientation.x' %}
+        {% set y = obj ~ '.pose.pose.orientation.y' %}
+        {% set z = obj ~ '.pose.pose.orientation.z' %}
+        {% set w = obj ~ '.pose.pose.orientation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
+        {% set x = obj ~ '.quaternion.x' %}
+        {% set y = obj ~ '.quaternion.y' %}
+        {% set z = obj ~ '.quaternion.z' %}
+        {% set w = obj ~ '.quaternion.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
+        {% set x = obj ~ '.rotation.x' %}
+        {% set y = obj ~ '.rotation.y' %}
+        {% set z = obj ~ '.rotation.z' %}
+        {% set w = obj ~ '.rotation.w' %}
+    {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
+        {% set x = obj ~ '.transform.rotation.x' %}
+        {% set y = obj ~ '.transform.rotation.y' %}
+        {% set z = obj ~ '.transform.rotation.z' %}
+        {% set w = obj ~ '.transform.rotation.w' %}
+    {%- else -%}
+        {% set x = obj ~ '.x' %}
+        {% set y = obj ~ '.y' %}
+        {% set z = obj ~ '.z' %}
+        {% set w = obj ~ '.w' %}
+    {%- endif %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} * {{ w }} + {{ x }} * {{ x }}))
+{%- endmacro %}
+
+
+{##############################################################################}
+{#  QUANTIFIERS #}
+{##############################################################################}
+
+{% macro _quantifier(q, msg) -%}
+{{ _q_fun(q) }}({{ _inline_expression(q.condition, msg) }} {# -#}
+for v_{{ q.variable }} in {{ _q_dom(q, msg) }})
+{%- endmacro %}
+
+{% macro _q_fun(q) -%}
+{% if q.is_universal -%}
+all
+{%- else -%}
+any
+{%- endif %}
+{%- endmacro %}
+
+{% macro _q_dom(q, msg) -%}
+{% if q.domain.can_be_array -%}
+range(len({{ _inline_expression(q.domain, msg) }}))
+{%- else -%}
+{{ _inline_expression(q.domain, msg) }}
+{%- endif %}
+{%- endmacro %}
