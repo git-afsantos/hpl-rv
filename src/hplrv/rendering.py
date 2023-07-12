@@ -28,7 +28,7 @@ class TemplateRenderer:
             line_comment_prefix=None,
             trim_blocks=True,
             lstrip_blocks=True,
-            autoescape=False
+            autoescape=False,
         )
 
     def render_rospy_node(self, hpl_properties, topic_types):
@@ -61,8 +61,7 @@ class TemplateRenderer:
         }
         return self._render_template('node.python.jinja', data)
 
-    def render_monitor(self, hpl_property, class_name=None, id_as_class=True,
-            encoding=None):
+    def render_monitor(self, hpl_property, class_name=None, id_as_class=True, encoding=None):
         builder, template_file = self._template(hpl_property, id_as_class)
         if class_name:
             builder.class_name = class_name

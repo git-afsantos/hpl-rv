@@ -8,7 +8,7 @@
 from collections import defaultdict, namedtuple
 
 from hpl.ast import HplVacuousTruth
-from hpl.logic import refactor_reference, replace_var_with_this, replace_this_with_var
+from hpl.logic import refactor_reference, replace_this_with_var, replace_var_with_this
 
 from hplrv.constants import (
     EVENT_ACTIVATOR,
@@ -29,16 +29,16 @@ from hplrv.constants import (
 # Data Structures
 ###############################################################################
 
-ActivatorEvent = namedtuple('ActivatorEvent',
-    ('event_type', 'predicate'))
+ActivatorEvent = namedtuple('ActivatorEvent', ('event_type', 'predicate'))
+
 
 def new_activator(phi):
     # phi: HplPredicate
     return ActivatorEvent(EVENT_ACTIVATOR, phi)
 
 
-TerminatorEvent = namedtuple('TerminatorEvent',
-    ('event_type', 'predicate', 'activator', 'verdict'))
+TerminatorEvent = namedtuple('TerminatorEvent', ('event_type', 'predicate', 'activator', 'verdict'))
+
 
 def new_terminator(phi, activator, verdict):
     # predicate: HplPredicate
@@ -46,8 +46,9 @@ def new_terminator(phi, activator, verdict):
     # verdict: bool|None
     return TerminatorEvent(EVENT_TERMINATOR, phi, activator, verdict)
 
-BehaviourEvent = namedtuple('BehaviourEvent',
-    ('event_type', 'predicate', 'activator', 'trigger'))
+
+BehaviourEvent = namedtuple('BehaviourEvent', ('event_type', 'predicate', 'activator', 'trigger'))
+
 
 def new_behaviour(phi, activator, trigger):
     # predicate: HplPredicate
@@ -55,8 +56,9 @@ def new_behaviour(phi, activator, trigger):
     # trigger: str|None
     return BehaviourEvent(EVENT_BEHAVIOUR, phi, activator, trigger)
 
-TriggerEvent = namedtuple('TriggerEvent',
-    ('event_type', 'predicate', 'activator'))
+
+TriggerEvent = namedtuple('TriggerEvent', ('event_type', 'predicate', 'activator'))
+
 
 def new_trigger(phi, activator):
     # predicate: HplPredicate
@@ -72,12 +74,13 @@ def _default_dict_of_lists():
 # State Machine Builder
 ###############################################################################
 
+
 class PatternBasedBuilder:
-    #initial_state: int
-    #timeout: float
-    #reentrant_scope: bool
-    #pool_size: -1|0|int
-    #on_msg:
+    # initial_state: int
+    # timeout: float
+    # reentrant_scope: bool
+    # pool_size: -1|0|int
+    # on_msg:
     #    <topic>:
     #        <state>:
     #            - <event>
@@ -146,14 +149,14 @@ class PatternBasedBuilder:
 # Absence State Machine
 ###############################################################################
 
+
 class AbsenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
         super(AbsenceBuilder, self).__init__(hpl_property, STATE_ACTIVE)
 
     @property
     def has_safe_state(self):
-        return (self.timeout >= 0 and self.timeout < INF
-                and self.reentrant_scope)
+        return self.timeout >= 0 and self.timeout < INF and self.reentrant_scope
 
     def calc_pool_size(self, hpl_property):
         return 0
@@ -183,6 +186,7 @@ class AbsenceBuilder(PatternBasedBuilder):
 ###############################################################################
 # Existence State Machine
 ###############################################################################
+
 
 class ExistenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
@@ -218,6 +222,7 @@ class ExistenceBuilder(PatternBasedBuilder):
 # Requirement State Machine
 ###############################################################################
 
+
 class RequirementBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
         self.has_trigger_refs = False
@@ -236,8 +241,7 @@ class RequirementBuilder(PatternBasedBuilder):
 
     @property
     def has_safe_state(self):
-        return ((self.timeout > 0 or self.reentrant_scope)
-                and not self.has_trigger_refs)
+        return (self.timeout > 0 or self.reentrant_scope) and not self.has_trigger_refs
 
     def calc_pool_size(self, hpl_property):
         if not self.has_trigger_refs:
@@ -262,8 +266,8 @@ class RequirementBuilder(PatternBasedBuilder):
 
     def add_behaviour(self, event):
         for e in event.simple_events():
-            #alias = None
-            #if self._activator and e.contains_reference(self._activator):
+            # alias = None
+            # if self._activator and e.contains_reference(self._activator):
             #    alias = self._activator
             # FIXME adding activator always to ensure dependent triggers have it
             datum = new_behaviour(e.predicate, self._activator, None)
@@ -293,6 +297,7 @@ class RequirementBuilder(PatternBasedBuilder):
 ###############################################################################
 # Response State Machine
 ###############################################################################
+
 
 class ResponseBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
@@ -349,6 +354,7 @@ class ResponseBuilder(PatternBasedBuilder):
 # Prevention State Machine
 ###############################################################################
 
+
 class PreventionBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
         super(PreventionBuilder, self).__init__(hpl_property, STATE_SAFE)
@@ -359,7 +365,7 @@ class PreventionBuilder(PatternBasedBuilder):
                 if e.contains_reference(self._trigger):
                     return -1
         # no alias, no refs
-        return 1 # if self.timeout >= 0 else 0
+        return 1  # if self.timeout >= 0 else 0
 
     def add_terminator(self, event):
         # must be called before pattern events
