@@ -174,7 +174,7 @@ class PatternBasedBuilder:
 
 class AbsenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(AbsenceBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
+        super().__init__(hpl_property, MonitorState.ACTIVE)
 
     @property
     def has_safe_state(self):
@@ -212,7 +212,7 @@ class AbsenceBuilder(PatternBasedBuilder):
 
 class ExistenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(ExistenceBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
+        super().__init__(hpl_property, MonitorState.ACTIVE)
 
     def calc_pool_size(self, hpl_property):
         return 0
@@ -259,7 +259,7 @@ class RequirementBuilder(PatternBasedBuilder):
                     if e.contains_reference(event.alias):
                         self.has_trigger_refs = True
                         break
-        super(RequirementBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
+        super().__init__(hpl_property, MonitorState.ACTIVE)
 
     @property
     def has_safe_state(self):
@@ -323,7 +323,7 @@ class RequirementBuilder(PatternBasedBuilder):
 
 class ResponseBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(ResponseBuilder, self).__init__(hpl_property, MonitorState.SAFE)
+        super().__init__(hpl_property, MonitorState.SAFE)
 
     def calc_pool_size(self, hpl_property):
         if self._trigger:
@@ -379,7 +379,7 @@ class ResponseBuilder(PatternBasedBuilder):
 
 class PreventionBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(PreventionBuilder, self).__init__(hpl_property, MonitorState.SAFE)
+        super().__init__(hpl_property, MonitorState.SAFE)
 
     def calc_pool_size(self, hpl_property):
         if self._trigger:
