@@ -1,4 +1,4 @@
-# HPL RV
+# HPL Runtime Verification
 
 This project provides a tools from which you can build and manage runtime monitors based on HPL properties.
 
