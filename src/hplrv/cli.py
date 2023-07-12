@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright © 2021 André Santos
+# Copyright © 2023 André Santos
 
 """
 Module that contains the command line program.
@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 import argparse
 import sys
 
-from bakeapy import __version__ as current_version
+from hplrv import __version__ as current_version
 
 ###############################################################################
 # Argument Parsing
@@ -31,11 +31,15 @@ from bakeapy import __version__ as current_version
 
 
 def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
-    msg = 'A short description of the project.'
-    parser = argparse.ArgumentParser(description=msg)
+    prog = 'HPL RV'
+    description = 'Tools to enable Runtime Verification from HPL properties.'
+    parser = argparse.ArgumentParser(prog=prog, description=description)
 
     parser.add_argument(
-        '--version', dest='version', action='store_true', help='Prints the program version.'
+        '--version',
+        action='version',
+        version=f'{prog} {current_version}',
+        help='Prints the program version.',
     )
 
     parser.add_argument(

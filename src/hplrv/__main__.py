@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright © 2021 André Santos
+# Copyright © 2023 André Santos
 
 """
 Entrypoint module, in case you use `python -m <package>`.
@@ -17,7 +17,7 @@ Why does this file exist, and why __main__? For more info, read:
 
 import sys
 
-from bakeapy.cli import main
+from hplrv.cli import main
 
 ###############################################################################
 # Entry Point
