@@ -5,65 +5,87 @@
 # Imports
 ###############################################################################
 
-from collections import defaultdict, namedtuple
+from typing import Optional
 
-from hpl.ast import HplVacuousTruth
+from collections import defaultdict, namedtuple
+from enum import IntEnum
+
+from attrs import field, frozen
+from hpl.ast import HplPredicate, HplVacuousTruth
 from hpl.logic import refactor_reference, replace_this_with_var, replace_var_with_this
 
-from hplrv.constants import (
-    EVENT_ACTIVATOR,
-    EVENT_BEHAVIOUR,
-    EVENT_OTHER,
-    EVENT_TERMINATOR,
-    EVENT_TRIGGER,
-    INF,
-    STATE_ACTIVE,
-    STATE_FALSE,
-    STATE_INACTIVE,
-    STATE_OFF,
-    STATE_SAFE,
-    STATE_TRUE,
-)
+###############################################################################
+# Constants
+###############################################################################
+
+INF = float('inf')
+
+
+class MonitorState(IntEnum):
+    OFF = 0
+    TRUE = -1
+    FALSE = -2
+    INACTIVE = 1
+    ACTIVE = 2
+    SAFE = 3
+
+
+class EventType(IntEnum):
+    OTHER = 0
+    ACTIVATOR = 1
+    TERMINATOR = 2
+    BEHAVIOUR = 3
+    TRIGGER = 4
+
 
 ###############################################################################
 # Data Structures
 ###############################################################################
 
-ActivatorEvent = namedtuple('ActivatorEvent', ('event_type', 'predicate'))
+
+@frozen
+class MonitoringEvent:
+    predicate: HplPredicate
+
+    @property
+    def event_type(self) -> int:
+        raise NotImplementedError()
 
 
-def new_activator(phi):
-    # phi: HplPredicate
-    return ActivatorEvent(EVENT_ACTIVATOR, phi)
+@frozen
+class ActivatorEvent(MonitoringEvent):
+    @property
+    def event_type(self) -> int:
+        return EventType.ACTIVATOR
 
 
-TerminatorEvent = namedtuple('TerminatorEvent', ('event_type', 'predicate', 'activator', 'verdict'))
+@frozen
+class TerminatorEvent(MonitoringEvent):
+    activator: Optional[str] = None
+    verdict: Optional[bool] = None
+
+    @property
+    def event_type(self) -> int:
+        return EventType.TERMINATOR
 
 
-def new_terminator(phi, activator, verdict):
-    # predicate: HplPredicate
-    # activator: str|None
-    # verdict: bool|None
-    return TerminatorEvent(EVENT_TERMINATOR, phi, activator, verdict)
+@frozen
+class BehaviourEvent(MonitoringEvent):
+    activator: Optional[str] = None
+    trigger: Optional[str] = None
+
+    @property
+    def event_type(self) -> int:
+        return EventType.BEHAVIOUR
 
 
-BehaviourEvent = namedtuple('BehaviourEvent', ('event_type', 'predicate', 'activator', 'trigger'))
+@frozen
+class TriggerEvent(MonitoringEvent):
+    activator: Optional[str] = None
 
-
-def new_behaviour(phi, activator, trigger):
-    # predicate: HplPredicate
-    # activator: str|None
-    # trigger: str|None
-    return BehaviourEvent(EVENT_BEHAVIOUR, phi, activator, trigger)
-
-
-TriggerEvent = namedtuple('TriggerEvent', ('event_type', 'predicate', 'activator'))
-
-
-def new_trigger(phi, activator):
-    # predicate: HplPredicate
-    # activator: str|None
-    return TriggerEvent(EVENT_TRIGGER, phi, activator)
+    @property
+    def event_type(self) -> int:
+        return EventType.TRIGGER
 
 
 def _default_dict_of_lists():
@@ -109,13 +131,13 @@ class PatternBasedBuilder:
         if hpl_property.scope.is_global:
             self.initial_state = s0
         elif hpl_property.scope.is_after:
-            self.initial_state = STATE_INACTIVE
+            self.initial_state = MonitorState.INACTIVE
             self.add_activator(hpl_property.scope.activator)
         elif hpl_property.scope.is_until:
             self.initial_state = s0
             self.add_terminator(hpl_property.scope.terminator)
         elif hpl_property.scope.is_after_until:
-            self.initial_state = STATE_INACTIVE
+            self.initial_state = MonitorState.INACTIVE
             self.reentrant_scope = True
             self.add_activator(hpl_property.scope.activator)
             self.add_terminator(hpl_property.scope.terminator)
@@ -130,7 +152,7 @@ class PatternBasedBuilder:
         # assuming only disjunctions or simple events
         for e in event.simple_events():
             datum = new_activator(e.predicate)
-            self.on_msg[e.topic][STATE_INACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.INACTIVE].append(datum)
 
     def add_terminator(self, event):
         raise NotImplementedError()
@@ -152,7 +174,7 @@ class PatternBasedBuilder:
 
 class AbsenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(AbsenceBuilder, self).__init__(hpl_property, STATE_ACTIVE)
+        super(AbsenceBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
 
     @property
     def has_safe_state(self):
@@ -170,9 +192,9 @@ class AbsenceBuilder(PatternBasedBuilder):
                 alias = self._activator
             datum = new_terminator(e.predicate, alias, v)
             states = self.on_msg[e.topic]
-            states[STATE_ACTIVE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
         for e in event.simple_events():
@@ -180,7 +202,7 @@ class AbsenceBuilder(PatternBasedBuilder):
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
             datum = new_behaviour(e.predicate, alias, None)
-            self.on_msg[e.topic][STATE_ACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
 
 ###############################################################################
@@ -190,7 +212,7 @@ class AbsenceBuilder(PatternBasedBuilder):
 
 class ExistenceBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(ExistenceBuilder, self).__init__(hpl_property, STATE_ACTIVE)
+        super(ExistenceBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
 
     def calc_pool_size(self, hpl_property):
         return 0
@@ -204,10 +226,10 @@ class ExistenceBuilder(PatternBasedBuilder):
                 alias = self._activator
             states = self.on_msg[e.topic]
             datum = new_terminator(e.predicate, alias, False)
-            states[STATE_ACTIVE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
             if self.reentrant_scope:
                 datum = new_terminator(e.predicate, alias, None)
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
         for e in event.simple_events():
@@ -215,7 +237,7 @@ class ExistenceBuilder(PatternBasedBuilder):
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
             datum = new_behaviour(e.predicate, alias, None)
-            self.on_msg[e.topic][STATE_ACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
 
 ###############################################################################
@@ -237,7 +259,7 @@ class RequirementBuilder(PatternBasedBuilder):
                     if e.contains_reference(event.alias):
                         self.has_trigger_refs = True
                         break
-        super(RequirementBuilder, self).__init__(hpl_property, STATE_ACTIVE)
+        super(RequirementBuilder, self).__init__(hpl_property, MonitorState.ACTIVE)
 
     @property
     def has_safe_state(self):
@@ -260,9 +282,9 @@ class RequirementBuilder(PatternBasedBuilder):
                 alias = self._activator
             datum = new_terminator(e.predicate, alias, v)
             states = self.on_msg[e.topic]
-            states[STATE_ACTIVE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
         for e in event.simple_events():
@@ -271,7 +293,7 @@ class RequirementBuilder(PatternBasedBuilder):
             #    alias = self._activator
             # FIXME adding activator always to ensure dependent triggers have it
             datum = new_behaviour(e.predicate, self._activator, None)
-            self.on_msg[e.topic][STATE_ACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
         for e in event.simple_events():
@@ -289,9 +311,9 @@ class RequirementBuilder(PatternBasedBuilder):
             else:
                 datum = new_trigger(e.predicate, alias)
             states = self.on_msg[e.topic]
-            states[STATE_ACTIVE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
 
 
 ###############################################################################
@@ -301,7 +323,7 @@ class RequirementBuilder(PatternBasedBuilder):
 
 class ResponseBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(ResponseBuilder, self).__init__(hpl_property, STATE_SAFE)
+        super(ResponseBuilder, self).__init__(hpl_property, MonitorState.SAFE)
 
     def calc_pool_size(self, hpl_property):
         if self._trigger:
@@ -319,13 +341,13 @@ class ResponseBuilder(PatternBasedBuilder):
                 alias = self._activator
             states = self.on_msg[e.topic]
             datum = new_terminator(e.predicate, alias, False)
-            states[STATE_ACTIVE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
             if self.reentrant_scope:
                 datum = new_terminator(e.predicate, alias, None)
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
             else:
                 datum = new_terminator(e.predicate, alias, True)
-                states[STATE_SAFE].append(datum)
+                states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
         for e in event.simple_events():
@@ -336,7 +358,7 @@ class ResponseBuilder(PatternBasedBuilder):
             if self._trigger and e.contains_reference(self._trigger):
                 trigger = self._trigger
             datum = new_behaviour(e.predicate, activator, trigger)
-            self.on_msg[e.topic][STATE_ACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
         for e in event.simple_events():
@@ -346,8 +368,8 @@ class ResponseBuilder(PatternBasedBuilder):
             datum = new_trigger(e.predicate, alias)
             states = self.on_msg[e.topic]
             if self.pool_size != 0:
-                states[STATE_ACTIVE].append(datum)
-            states[STATE_SAFE].append(datum)
+                states[MonitorState.ACTIVE].append(datum)
+            states[MonitorState.SAFE].append(datum)
 
 
 ###############################################################################
@@ -357,7 +379,7 @@ class ResponseBuilder(PatternBasedBuilder):
 
 class PreventionBuilder(PatternBasedBuilder):
     def __init__(self, hpl_property):
-        super(PreventionBuilder, self).__init__(hpl_property, STATE_SAFE)
+        super(PreventionBuilder, self).__init__(hpl_property, MonitorState.SAFE)
 
     def calc_pool_size(self, hpl_property):
         if self._trigger:
@@ -378,8 +400,8 @@ class PreventionBuilder(PatternBasedBuilder):
             else:
                 datum = new_terminator(e.predicate, alias, True)
             states = self.on_msg[e.topic]
-            states[STATE_ACTIVE].append(datum)
-            states[STATE_SAFE].append(datum)
+            states[MonitorState.ACTIVE].append(datum)
+            states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
         for e in event.simple_events():
@@ -390,7 +412,7 @@ class PreventionBuilder(PatternBasedBuilder):
             if self._trigger and e.contains_reference(self._trigger):
                 trigger = self._trigger
             datum = new_behaviour(e.predicate, activator, trigger)
-            self.on_msg[e.topic][STATE_ACTIVE].append(datum)
+            self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
         for e in event.simple_events():
@@ -400,5 +422,5 @@ class PreventionBuilder(PatternBasedBuilder):
             datum = new_trigger(e.predicate, alias)
             states = self.on_msg[e.topic]
             if self.pool_size != 0:
-                states[STATE_ACTIVE].append(datum)
-            states[STATE_SAFE].append(datum)
+                states[MonitorState.ACTIVE].append(datum)
+            states[MonitorState.SAFE].append(datum)
