@@ -31,11 +31,12 @@ class MonitorState(IntEnum):
 
 
 class EventType(IntEnum):
-    OTHER = 0
+    TIMER = 0
     ACTIVATOR = 1
     TERMINATOR = 2
     BEHAVIOUR = 3
     TRIGGER = 4
+    SPAM = 5
 
 
 ###############################################################################
@@ -151,7 +152,7 @@ class PatternBasedBuilder:
         # must be called before all others
         # assuming only disjunctions or simple events
         for e in event.simple_events():
-            datum = new_activator(e.predicate)
+            datum = ActivatorEvent(e.predicate)
             self.on_msg[e.topic][MonitorState.INACTIVE].append(datum)
 
     def add_terminator(self, event):
@@ -190,7 +191,7 @@ class AbsenceBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_terminator(e.predicate, alias, v)
+            datum = TerminatorEvent(e.predicate, alias, v)
             states = self.on_msg[e.topic]
             states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
@@ -201,7 +202,7 @@ class AbsenceBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_behaviour(e.predicate, alias, None)
+            datum = BehaviourEvent(e.predicate, alias, None)
             self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
 
@@ -225,10 +226,10 @@ class ExistenceBuilder(PatternBasedBuilder):
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
             states = self.on_msg[e.topic]
-            datum = new_terminator(e.predicate, alias, False)
+            datum = TerminatorEvent(e.predicate, alias, False)
             states[MonitorState.ACTIVE].append(datum)
             if self.reentrant_scope:
-                datum = new_terminator(e.predicate, alias, None)
+                datum = TerminatorEvent(e.predicate, alias, None)
                 states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
@@ -236,7 +237,7 @@ class ExistenceBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_behaviour(e.predicate, alias, None)
+            datum = BehaviourEvent(e.predicate, alias, None)
             self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
 
@@ -280,7 +281,7 @@ class RequirementBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_terminator(e.predicate, alias, v)
+            datum = TerminatorEvent(e.predicate, alias, v)
             states = self.on_msg[e.topic]
             states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
@@ -292,7 +293,7 @@ class RequirementBuilder(PatternBasedBuilder):
             # if self._activator and e.contains_reference(self._activator):
             #    alias = self._activator
             # FIXME adding activator always to ensure dependent triggers have it
-            datum = new_behaviour(e.predicate, self._activator, None)
+            datum = BehaviourEvent(e.predicate, self._activator, None)
             self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
@@ -307,9 +308,9 @@ class RequirementBuilder(PatternBasedBuilder):
                     replace_this_with_var(psi, '1')
                     replace_var_with_this(psi, self._behaviour)
                     self.dependent_predicates[e.topic] = psi
-                datum = new_trigger(phi, alias)
+                datum = TriggerEvent(phi, alias)
             else:
-                datum = new_trigger(e.predicate, alias)
+                datum = TriggerEvent(e.predicate, alias)
             states = self.on_msg[e.topic]
             states[MonitorState.ACTIVE].append(datum)
             if self.has_safe_state:
@@ -340,13 +341,13 @@ class ResponseBuilder(PatternBasedBuilder):
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
             states = self.on_msg[e.topic]
-            datum = new_terminator(e.predicate, alias, False)
+            datum = TerminatorEvent(e.predicate, alias, False)
             states[MonitorState.ACTIVE].append(datum)
             if self.reentrant_scope:
-                datum = new_terminator(e.predicate, alias, None)
+                datum = TerminatorEvent(e.predicate, alias, None)
                 states[MonitorState.SAFE].append(datum)
             else:
-                datum = new_terminator(e.predicate, alias, True)
+                datum = TerminatorEvent(e.predicate, alias, True)
                 states[MonitorState.SAFE].append(datum)
 
     def add_behaviour(self, event):
@@ -357,7 +358,7 @@ class ResponseBuilder(PatternBasedBuilder):
             trigger = None
             if self._trigger and e.contains_reference(self._trigger):
                 trigger = self._trigger
-            datum = new_behaviour(e.predicate, activator, trigger)
+            datum = BehaviourEvent(e.predicate, activator, trigger)
             self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
@@ -365,7 +366,7 @@ class ResponseBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_trigger(e.predicate, alias)
+            datum = TriggerEvent(e.predicate, alias)
             states = self.on_msg[e.topic]
             if self.pool_size != 0:
                 states[MonitorState.ACTIVE].append(datum)
@@ -396,9 +397,9 @@ class PreventionBuilder(PatternBasedBuilder):
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
             if self.reentrant_scope:
-                datum = new_terminator(e.predicate, alias, None)
+                datum = TerminatorEvent(e.predicate, alias, None)
             else:
-                datum = new_terminator(e.predicate, alias, True)
+                datum = TerminatorEvent(e.predicate, alias, True)
             states = self.on_msg[e.topic]
             states[MonitorState.ACTIVE].append(datum)
             states[MonitorState.SAFE].append(datum)
@@ -411,7 +412,7 @@ class PreventionBuilder(PatternBasedBuilder):
             trigger = None
             if self._trigger and e.contains_reference(self._trigger):
                 trigger = self._trigger
-            datum = new_behaviour(e.predicate, activator, trigger)
+            datum = BehaviourEvent(e.predicate, activator, trigger)
             self.on_msg[e.topic][MonitorState.ACTIVE].append(datum)
 
     def add_trigger(self, event):
@@ -419,7 +420,7 @@ class PreventionBuilder(PatternBasedBuilder):
             alias = None
             if self._activator and e.contains_reference(self._activator):
                 alias = self._activator
-            datum = new_trigger(e.predicate, alias)
+            datum = TriggerEvent(e.predicate, alias)
             states = self.on_msg[e.topic]
             if self.pool_size != 0:
                 states[MonitorState.ACTIVE].append(datum)

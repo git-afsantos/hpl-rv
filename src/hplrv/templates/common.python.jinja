@@ -38,7 +38,7 @@
 
 {# meant to be used with call #}
 {% macro state_machine(sm) -%}
-class {{ sm.class_name }}(object):
+class {{ sm.class_name }}:
     __slots__ = (
         '_lock',          # concurrency control
         '_state',         # currently active state
