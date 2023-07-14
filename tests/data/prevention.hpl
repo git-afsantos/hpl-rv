@@ -1,0 +1,33 @@
+globally: /a forbids /b
+
+globally: /a forbids /b within 100 ms
+
+globally: /a {data > 0} forbids /b {data < 0}
+
+globally: /a {data > 0} forbids /b {data < 0} within 100 ms
+
+globally: (/a1 {data > 0} or /a2 {data < 0}) forbids /b within 100 ms
+
+globally: /a forbids (/b1 {data > 0} or /b2 {data < 0}) within 100 ms
+
+after /p: /a forbids /b within 100 ms
+
+after /p {phi}: /a {data > 0} forbids /b {data < 0} within 100 ms
+
+until /q: /a {phi} forbids /b {psi} within 100 ms
+
+until /b: /a forbids /b within 100 ms
+
+until /a: /a forbids /b within 100 ms
+
+after /p {phi} until /q {psi}: /a {alpha} forbids /b {beta}
+
+after /p {phi} until /q {psi}: /a {alpha} forbids /b {beta} within 100 ms
+
+globally: /a as A forbids /b {x < @A.x}
+
+globally: /a as A {x > 0} forbids /b {x < @A.x} within 100 ms
+
+globally: /a as A {x > 0} forbids (/b1 {x < @A.x} or /b2 {y < @A.y}) within 100 ms
+
+after /p as P until /q {x > @P.x}: /a as A {x = @P.x} forbids (/b1 {x < @A.x + @P.x} or /b2 {x in {@P.x, @A.x}}) within 100 ms

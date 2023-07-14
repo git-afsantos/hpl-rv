@@ -12,13 +12,18 @@ Module that contains the 'gen' command line program.
 from typing import Any, Dict, Final, List, Optional
 
 import argparse
+from pathlib import Path
 import sys
+
+from hpl.parser import property_parser, specification_parser
+
+from hplrv.rendering import TemplateRenderer
 
 ###############################################################################
 # Constants
 ###############################################################################
 
-PROG_GEN: Final[str] = 'hplrv gen'
+PROG_GEN: Final[str] = 'hpl-rv gen'
 
 ###############################################################################
 # Entry Point
@@ -84,6 +89,43 @@ def load_configs(args: Dict[str, Any]) -> Dict[str, Any]:
 ###############################################################################
 
 
-def run(args: Dict[str, Any], settings: Dict[str, Any]) -> int:
-    # https://github.com/git-afsantos/hpl-rv-gen/blob/main/scripts/main.py
+def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
+    parts: List[str] = []
+    if args.get('files'):
+        parts.extend(generate_from_files(args['args']))
+    else:
+        parts.extend(generate_from_properties(args['args']))
+    output: str = '\n\n'.join(code for code in parts)
+
+    input_path: str = args.get('output')
+    if input_path:
+        path: Path = Path(input_path).resolve(strict=False)
+        path.write_text(output, encoding='utf-8')
+    else:
+        print(output)
     return 0
+
+
+def generate_from_files(paths: List[str]) -> List[str]:
+    parser = specification_parser()
+    r = TemplateRenderer()
+    outputs = []
+    for input_path in paths:
+        path: Path = Path(input_path).resolve(strict=True)
+        text: str = path.read_text(encoding='utf-8').strip()
+        spec = parser.parse(text)
+        for hpl_property in spec.properties:
+            code = r.render_monitor(hpl_property)
+            outputs.append(code)
+    return outputs
+
+
+def generate_from_properties(properties: List[str]) -> List[str]:
+    parser = property_parser()
+    r = TemplateRenderer()
+    outputs = []
+    for text in properties:
+        hpl_property = parser.parse(text)
+        code = r.render_monitor(hpl_property)
+        outputs.append(code)
+    return outputs

@@ -1,0 +1,33 @@
+globally: /a causes /b
+
+globally: /a causes /b within 100 ms
+
+globally: /a {data > 0} causes /b {data < 0}
+
+globally: /a {data > 0} causes /b {data < 0} within 100 ms
+
+globally: (/a1 {data > 0} or /a2 {data < 0}) causes /b within 100 ms
+
+globally: /a causes (/b1 {data > 0} or /b2 {data < 0}) within 100 ms
+
+after /p: /a causes /b within 100 ms
+
+after /p {phi}: /a {data > 0} causes /b {data < 0} within 100 ms
+
+until /q: /a {phi} causes /b {psi} within 100 ms
+
+until /b: /a causes /b within 100 ms
+
+until /a: /a causes /b within 100 ms
+
+after /p {phi} until /q {psi}: /a {alpha} causes /b {beta}
+
+after /p {phi} until /q {psi}: /a {alpha} causes /b {beta} within 100 ms
+
+globally: /a as A causes /b {x < @A.x}
+
+globally: /a as A {x > 0} causes /b {x < @A.x} within 100 ms
+
+globally: /a as A {x > 0} causes (/b1 {x < @A.x} or /b2 {y < @A.y}) within 100 ms
+
+after /p as P until /q {x > @P.x}: /a as A {x = @P.x} causes (/b1 {x < @A.x + @P.x} or /b2 {x in {@P.x, @A.x}}) within 100 ms

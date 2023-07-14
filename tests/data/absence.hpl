@@ -1,0 +1,22 @@
+# id: p1
+# title: "My First Property"
+# description: "This is a test property to be transformed into a monitor."
+globally: no /ns/topic {data > 0}
+
+globally: no /ns/topic {data > 0} within 100 ms
+
+after /p: no /b {data > 0} within 100 ms
+
+after /p as P: no /b {data > @P.data}
+
+until /q {phi}: no /b {data > 0} within 100 ms
+
+after /p as P until /q {phi and (not @P.psi)}: no /b {forall i in array: array[@i] > 0}
+
+after /p as P until /q {phi and (not @P.psi)}: no /b {exists i in [1 to 4]: array[@i] > 0} within 1 s
+
+globally: no (/b1 {data > 0} or /b2 {data < 0})  within 100 ms
+
+after /b: no /b {3 * data**2 > 0}
+
+after (/p or /q or /b): no /b {data in {1,2,3}}

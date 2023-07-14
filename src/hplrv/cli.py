@@ -30,7 +30,7 @@ from hplrv.cmd import gen
 # Constants
 ###############################################################################
 
-PROG: Final[str] = 'hplrv'
+PROG: Final[str] = 'hpl-rv'
 CMD_GEN: Final[str] = 'gen'
 CMD_GUI: Final[str] = 'gui'
 
@@ -60,7 +60,7 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
     parser.add_argument(
         'args',
         metavar='ARG',
-        nargs=argparse.ZERO_OR_MORE,
+        nargs=argparse.REMAINDER,
         help=f'arguments for the {PROG} command',
     )
 
