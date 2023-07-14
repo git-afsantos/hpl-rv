@@ -18,12 +18,21 @@ Some of the structure of this file came from this StackExchange question:
 # Imports
 ###############################################################################
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Final, List, Optional
 
 import argparse
 import sys
 
 from hplrv import __version__ as current_version
+from hplrv.cmd import gen
+
+###############################################################################
+# Constants
+###############################################################################
+
+PROG: Final[str] = 'hplrv'
+CMD_GEN: Final[str] = 'gen'
+CMD_GUI: Final[str] = 'gui'
 
 ###############################################################################
 # Argument Parsing
@@ -31,19 +40,28 @@ from hplrv import __version__ as current_version
 
 
 def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
-    prog = 'HPL RV'
     description = 'Tools to enable Runtime Verification from HPL properties.'
-    parser = argparse.ArgumentParser(prog=prog, description=description)
+    parser = argparse.ArgumentParser(prog=PROG, description=description)
 
     parser.add_argument(
         '--version',
         action='version',
-        version=f'{prog} {current_version}',
-        help='Prints the program version.',
+        version=f'{PROG} {current_version}',
+        help='prints the program version',
     )
 
     parser.add_argument(
-        'args', metavar='ARG', nargs=argparse.ZERO_OR_MORE, help='An argument for the program.'
+        'cmd',
+        metavar='CMD',
+        choices=[CMD_GEN, CMD_GUI],
+        help=f'a {PROG} command to run',
+    )
+
+    parser.add_argument(
+        'args',
+        metavar='ARG',
+        nargs=argparse.ZERO_OR_MORE,
+        help=f'arguments for the {PROG} command',
     )
 
     args = parser.parse_args(args=argv)
@@ -76,18 +94,6 @@ def load_configs(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 ###############################################################################
-# Commands
-###############################################################################
-
-
-def do_real_work(args: Dict[str, Any], configs: Dict[str, Any]) -> None:
-    print(f'Arguments: {args}')
-    print(f'Configurations: {configs}')
-    if args['version']:
-        print(f'Version: {current_version}')
-
-
-###############################################################################
 # Entry Point
 ###############################################################################
 
@@ -99,7 +105,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         # Load additional config files here, e.g., from a path given via args.
         # Alternatively, set sane defaults if configuration is missing.
         config = load_configs(args)
-        do_real_work(args, config)
+        cmd: str = args['cmd']
+
+        if cmd == CMD_GEN:
+            return gen.subprogram(args.get('args'), config)
 
     except KeyboardInterrupt:
         print('Aborted manually.', file=sys.stderr)
