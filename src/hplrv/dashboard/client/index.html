@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <title>Dashboard</title>
+</head>
+<body>
+  <div id="app"></div>
+
+  <template id="vue-dashboard">
+      <h1>HPL RV Dashboard</h1>
+        <div class="card-container">
+            <div class="card">
+                <h3>Card Header</h3>
+                <div class="card-body">
+                    <h2>This Month</h2>
+                    <p>Total Earnings: $159.89</p>
+                    <p>Debits: $159.09</p>
+                    <p>Credits: $61.231</p>
+                    <p>Balance: 1000</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Card Header</h3>
+                <div class="card-body">
+                    <ul>
+                        <li class="tracked-monitor">
+                            <div class="status-icon"></div>
+                            <div class="description">
+                                <p class="name">Monitor 1</p>
+                                <code><b>globally</b>: /a <b>causes</b> /b</code>
+                            </div>
+                            <div class="toolbar">
+                                <span>edit</span>
+                                &nbsp;
+                                <span>delete</span>
+                            </div>
+                        </li>
+                        <li class="tracked-monitor">50.00 - Purchase</li>
+                        <li class="tracked-monitor">20.00 - Transfer</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+  </template>
+
+  <template id="vue-list-item">
+
+  </template>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
