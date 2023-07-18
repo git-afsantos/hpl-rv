@@ -13,44 +13,53 @@
   <div id="app"></div>
 
   <template id="vue-dashboard">
-      <h1>HPL RV Dashboard</h1>
-        <div class="card-container">
-            <div class="card">
-                <h3>Card Header</h3>
-                <div class="card-body">
-                    <h2>This Month</h2>
-                    <p>Total Earnings: $159.89</p>
-                    <p>Debits: $159.09</p>
-                    <p>Credits: $61.231</p>
-                    <p>Balance: 1000</p>
-                </div>
-            </div>
-            <div class="card">
-                <h3>Card Header</h3>
-                <div class="card-body">
-                    <ul>
-                        <li class="tracked-monitor">
-                            <div class="status-icon"></div>
-                            <div class="description">
-                                <p class="name">Monitor 1</p>
-                                <code><b>globally</b>: /a <b>causes</b> /b</code>
-                            </div>
-                            <div class="toolbar">
-                                <span>edit</span>
-                                &nbsp;
-                                <span>delete</span>
-                            </div>
-                        </li>
-                        <li class="tracked-monitor">50.00 - Purchase</li>
-                        <li class="tracked-monitor">20.00 - Transfer</li>
-                    </ul>
-                </div>
-            </div>
+    <h1>HPL RV Dashboard</h1>
+    <div class="card-container">
+      <div class="card">
+        <h3>Card Header</h3>
+        <div class="card-body">
+          <h2>This Month</h2>
+          <p>Total Earnings: $159.89</p>
+          <p>Debits: $159.09</p>
+          <p>Credits: $61.231</p>
+          <p>Balance: 1000</p>
         </div>
+      </div>
+      <div class="card">
+        <h3>Runtime Monitors</h3>
+        <div class="card-body">
+          <ul>
+            <runtime-monitor
+              name="Monitor 1"
+              property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
+            </runtime-monitor>
+            <runtime-monitor
+              name="Monitor 2"
+              property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
+            </runtime-monitor>
+            <runtime-monitor
+              name="Monitor 3"
+              property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
+            </runtime-monitor>
+          </ul>
+        </div>
+      </div>
+    </div>
   </template>
 
-  <template id="vue-list-item">
-
+  <template id="vue-runtime-monitor">
+    <li class="tracked-monitor">
+      <div class="status-icon"></div>
+      <div class="description">
+        <p class="name">{{ name }}</p>
+        <code v-html="propertyHTML"></code>
+      </div>
+      <div class="toolbar">
+        <button class="text-button">edit</button>
+        &nbsp;
+        <button class="text-button">delete</button>
+      </div>
+    </li>
   </template>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>

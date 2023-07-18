@@ -1,93 +1,126 @@
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 body {
-    font-family: 'Montserrat', sans-serif;
-    font-size: .75rem;
+  font-family: 'Montserrat', sans-serif;
+  font-size: .75rem;
 }
 
 #app {
-    padding: 1.5em;
+  padding: 1.5em;
 }
 
 .card-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 2em;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 2em;
 }
 
 .card {
-    flex: 1 1 auto;
-    border-radius: 8px;
-    background-color: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    padding: 2em;
+  flex: 1 1 auto;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 2em;
 }
 
 .card:hover {
-    outline: 1px solid lightgray;
+  outline: 1px solid lightgray;
 }
 
 .card > h3 {
-    font-weight: bold;
-    color: lightgray;
-    margin: 0 0 1em 0;
+  font-weight: bold;
+  color: lightgray;
+  margin: 0 0 1em 0;
 }
 
 .card-body ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 0;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
 }
 
 .tracked-monitor {
-    padding: 1em 0;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 1em;
-    align-items: center;
-    padding: 1em;
+  padding: 1em 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 1em;
+  align-items: center;
+  padding: 1em;
 }
 
 .tracked-monitor:hover {
-    background-color: whitesmoke;
+  background-color: whitesmoke;
 }
 
 .tracked-monitor:not(:first-child) {
-    border-top: 1px solid lightgray;
+  border-top: 1px solid lightgray;
 }
 
 .tracked-monitor > .description {
-    flex: 1 1 auto;
+  flex: 1 1 auto;
 }
 
 .tracked-monitor > .description > .name {
-    font-size: 1.5em;
-    font-weight: bold;
-    margin: 0 0 .5em 0;
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0 0 .5em 0;
 }
 
 .tracked-monitor > .description > code {
-    color: gray;
+  color: gray;
+}
+
+code > .special {
+  color: magenta;
+}
+
+code > .number {
+  color: orange;
+}
+
+code > .string {
+  color: forestgreen;
+}
+
+code > .bool {
+  color: cornflowerblue;
 }
 
 .tracked-monitor > .status-icon {
-    flex: 0 0 auto;
-    width: 2em;
-    height: 2em;
-    border-radius: 50%;
-    background-color: darkkhaki;
-    display: inline-block;
+  flex: 0 0 auto;
+  width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  background-color: darkkhaki;
+  display: inline-block;
 }
 
 .tracked-monitor > .toolbar {
-    flex: 0 0 auto;
-    opacity: 0;
+  flex: 0 0 auto;
+  opacity: 0;
+  display: flex;
+  flex-direction: row;
 }
 
 .tracked-monitor:hover > .toolbar {
-    opacity: 1;
+  opacity: 1;
+}
+
+.text-button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: .25em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: lightgray;
+}
+
+.text-button:hover,
+.text-button:active {
+  color: gray;
 }
