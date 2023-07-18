@@ -16,6 +16,7 @@ const PROPERTY_KEYWORDS = [
   /(\S\s+)(causes)(\s+\S)/ig,
   /(\S\s+)(requires)(\s+\S)/ig,
   /(\S\s+)(forbids)(\s+\S)/ig,
+  /(\S\s+)(or)(\s+\S)/ig,
   /(\S\s+)(within)(\s+\d)/ig,
   /(\d\s*)(s)(\s|$)/ig,
   /(\d\s*)(ms)(\s|$)/ig,
