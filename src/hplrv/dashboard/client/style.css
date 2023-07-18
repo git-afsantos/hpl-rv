@@ -71,6 +71,10 @@ body {
 }
 
 .tracked-monitor > .description > code {
+  color: darkgray;
+}
+
+.tracked-monitor:hover > .description > code {
   color: gray;
 }
 
