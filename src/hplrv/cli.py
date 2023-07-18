@@ -23,7 +23,7 @@ from typing import Any, Dict, Final, List, Optional
 import argparse
 import sys
 
-from hplrv import __version__ as current_version, gen
+from hplrv import __version__ as current_version, gen, gui
 
 ###############################################################################
 # Constants
@@ -108,6 +108,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         if cmd == CMD_GEN:
             return gen.subprogram(args.get('args'), config)
+        if cmd == CMD_GUI:
+            return gui.subprogram(args.get('args'), config)
 
     except KeyboardInterrupt:
         print('Aborted manually.', file=sys.stderr)

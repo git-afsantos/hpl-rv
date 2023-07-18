@@ -14,7 +14,6 @@ from typing import Any, Dict, Final, List, Optional, Type, Union
 
 import argparse
 from pathlib import Path
-import sys
 
 from hpl.ast import HplProperty, HplSpecification
 from hpl.parser import property_parser, specification_parser
@@ -38,6 +37,11 @@ ANY_PATH: Final[Type] = Union[Path, str]
 ANY_SPEC: Final[Type] = Union[HplSpecification, str]
 ANY_PROP: Final[Type] = Union[HplProperty, str]
 
+TEMPLATE_MONITOR: Final[str] = 'class'
+TEMPLATE_LIBRARY: Final[str] = 'lib'
+TEMPLATE_ROSNODE: Final[str] = 'ros'
+TEMPLATE_ROS2NODE: Final[str] = 'ros2'
+
 ###############################################################################
 # Public Interface
 ###############################################################################
@@ -60,6 +64,22 @@ def monitors_from_files(paths: List[ANY_PATH]) -> List[str]:
     return outputs
 
 
+def lib_from_files(paths: List[ANY_PATH]) -> str:
+    """
+    Produces a self-contained library of monitors,
+    given a list of paths to HPL files with specifications.
+    """
+    parser = specification_parser()
+    r = TemplateRenderer()
+    properties: List[HplProperty] = []
+    for input_path in paths:
+        path: Path = Path(input_path).resolve(strict=True)
+        text: str = path.read_text(encoding='utf-8').strip()
+        spec: HplSpecification = parser.parse(text)
+        properties.extend(spec.properties)
+    return r.render_monitor_library(properties)
+
+
 def monitors_from_spec(spec: ANY_SPEC) -> List[str]:
     """
     Produces a list of monitor code snippets,
@@ -73,6 +93,18 @@ def monitors_from_spec(spec: ANY_SPEC) -> List[str]:
     for hpl_property in spec.properties:
         outputs.append(r.render_monitor(hpl_property))
     return outputs
+
+
+def lib_from_spec(spec: ANY_SPEC) -> str:
+    """
+    Produces a self-contained library of monitors,
+    given an HPL specification.
+    """
+    if not isinstance(spec, HplSpecification):
+        parser = specification_parser()
+        spec = parser.parse(spec)
+    r = TemplateRenderer()
+    return r.render_monitor_library(spec.properties)
 
 
 def monitor_from_property(property: ANY_PROP) -> str:
@@ -101,6 +133,22 @@ def monitors_from_properties(properties: List[ANY_PROP]) -> List[str]:
     return outputs
 
 
+def lib_from_properties(properties: List[ANY_PROP]) -> str:
+    """
+    Produces a self-contained library of monitors,
+    given a list of HPL properties.
+    """
+    parser = property_parser()
+    r = TemplateRenderer()
+    properties = [
+        parser.parse(property)
+        if not isinstance(property, HplProperty)
+        else property
+        for property in properties
+    ]
+    return r.render_monitor_library(properties)
+
+
 class TemplateRenderer:
     def __init__(self):
         self.jinja_env = Environment(
@@ -111,6 +159,28 @@ class TemplateRenderer:
             lstrip_blocks=True,
             autoescape=False,
         )
+
+    def render_monitor_library(self, hpl_properties):
+        class_names = []
+        callbacks = {}
+        monitor_classes = []
+        for p in hpl_properties:
+            builder, template_file = self._template(p, True)
+            i = len(class_names)
+            builder.class_name = f'Property{i}Monitor'
+            class_names.append(builder.class_name)
+            for name in builder.on_msg:
+                if name not in callbacks:
+                    callbacks[name] = set()
+                callbacks[name].add(i)
+            data = {'state_machine': builder}
+            monitor_classes.append(self._render_template(template_file, data))
+        data = {
+            'class_names': class_names,
+            'monitor_classes': monitor_classes,
+            'callbacks': callbacks,
+        }
+        return self._render_template('library.python.jinja', data)
 
     def render_rospy_node(self, hpl_properties, topic_types):
         class_names = []
@@ -140,7 +210,7 @@ class TemplateRenderer:
             'ros_imports': ros_imports,
             'callbacks': callbacks,
         }
-        return self._render_template('node.python.jinja', data)
+        return self._render_template('rosnode.python.jinja', data)
 
     def render_monitor(self, hpl_property, class_name=None, id_as_class=True, encoding=None):
         builder, template_file = self._template(hpl_property, id_as_class)
@@ -231,7 +301,15 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
         '-f',
         '--files',
         action='store_true',
-        help=f'process args as HPL files (default: HPL properties)',
+        help='process args as HPL files (default: HPL properties)',
+    )
+
+    parser.add_argument(
+        '-t',
+        '--template',
+        default=TEMPLATE_MONITOR,
+        choices=[TEMPLATE_MONITOR, TEMPLATE_LIBRARY, TEMPLATE_ROSNODE, TEMPLATE_ROS2NODE],
+        help='which template to use for generated code (default: class)',
     )
 
     parser.add_argument('args', nargs='+', help='input properties')

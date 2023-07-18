@@ -51,8 +51,7 @@ setup(
     package_dir={'': 'src'},
     include_package_data=True,
     package_data={
-        PYTHON_PKG: ['templates/*.jinja'],
-        f'{PYTHON_PKG}.dashboard': ['client'],
+        PYTHON_PKG: ['templates/*.jinja', 'dashboard'],
     },
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -75,6 +74,8 @@ setup(
     python_requires='>=3.8, <4',
     install_requires=[
         'attrs>=23.1.0',
+        'bottle>=0.12',
+        'bottle-websocket>=0.2',
         'hpl-specs<1.0.0',
         'Jinja2>=3.1.0',
     ],

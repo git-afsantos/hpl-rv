@@ -1,0 +1,122 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+# SPDX-License-Identifier: MIT
+# Copyright © 2023 André Santos
+
+###############################################################################
+# Imports
+###############################################################################
+
+from collections import deque, namedtuple
+from functools import partial
+from math import (
+    acos,
+    asin,
+    atan,
+    atan2,
+    ceil,
+    cos,
+    degrees,
+    e as E,
+    floor,
+    log,
+    log10,
+    pi as PI,
+    radians,
+    sin,
+    sqrt,
+    tan,
+)
+from threading import Lock
+
+###############################################################################
+# Constants and Data Structures
+###############################################################################
+
+INF = float("inf")
+NAN = float("nan")
+
+MsgRecord = namedtuple('MsgRecord', ('topic', 'timestamp', 'msg'))
+
+
+###############################################################################
+# Helper Functions
+###############################################################################
+
+
+def noop(*args, **kwargs):
+    pass
+
+
+def prod(iterable):
+    x = 1
+    for y in iterable:
+        x = x * y
+        if x == 0:
+            return 0
+    return x
+
+
+###############################################################################
+# Monitor Classes
+###############################################################################
+
+
+{{ monitor_classes|join('\n\n\n') }}
+
+
+###############################################################################
+# Monitor Aggregator
+###############################################################################
+
+
+class HplMonitorManager:
+    def __init__(self, success_cb=noop, failure_cb=noop):
+        self.success_cb = success_cb
+        self.failure_cb = failure_cb
+        self.monitors = [
+            {# -#}
+        {% for cname in class_names %}
+            {{ cname }}(),
+        {% endfor %}
+        ]
+        for i in range(len(self.monitors)):
+            mon = self.monitors[i]
+            mon.on_success = partial(self._on_success, i)
+            mon.on_violation = partial(self._on_failure, i)
+
+    def launch(self, timestamp):
+        for mon in self.monitors:
+            mon.on_launch(timestamp)
+
+    def shutdown(self, timestamp):
+        for mon in self.monitors:
+            mon.on_shutdown(timestamp)
+
+    def on_timer(self, timestamp):
+        for mon in self.monitors:
+            mon.on_timer(timestamp)
+    {# -#}
+{% for topic, indices in callbacks.items() %}
+
+    {% set cbname = 'on_msg_' ~ topic.replace('/', '_') %}
+    def {{ cbname }}(self, msg, timestamp):
+        {% for i in indices %}
+        self.monitors[{{ i }}].{{ cbname }}(msg, timestamp)
+        {% endfor %}
+{% endfor %}
+
+    def _on_success(self, i, timestamp, witness):
+        mon = self.monitors[i]
+        assert mon.verdict is True
+        self.success_cb(mon, timestamp, witness)
+
+    def _on_failure(self, i, timestamp, witness):
+        mon = self.monitors[i]
+        assert mon.verdict is False
+        self.failure_cb(mon, timestamp, witness)
