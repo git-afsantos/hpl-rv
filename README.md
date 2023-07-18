@@ -17,18 +17,24 @@ pip install hpl-rv
 
 ## Usage
 
+This package provides a command line interface from which you can generate runtime monitors with a simple command.
+
+```bash
+# generating monitors from a specification file
+hplrv gen -f my_spec.hpl
+# generating monitors directly from properties
+hplrv gen "globally: no /a"
+# redirecting the output to a file
+hplrv gen -o ./code.py "globally: some /b within 100ms"
+```
+
 When used as a library, you can generate Python code for a runtime monitor class with a few simple steps.
 For example:
 
 ```python
-from hpl.parser import property_parser
-from hplrv.rendering import TemplateRenderer
-
-p = property_parser()
-r = TemplateRenderer()
-input_property = 'globally: no (/a or /b)'
-hpl_property = p.parse(input_property)
-code = r.render_monitor(hpl_property)
+from hplrv.gen import monitor_from_property
+hpl_property = 'globally: no (/a or /b)'
+code = monitor_from_property(hpl_property)
 print(code)
 ```
 

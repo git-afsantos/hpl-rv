@@ -23,8 +23,7 @@ from typing import Any, Dict, Final, List, Optional
 import argparse
 import sys
 
-from hplrv import __version__ as current_version
-from hplrv.cmd import gen
+from hplrv import __version__ as current_version, gen
 
 ###############################################################################
 # Constants

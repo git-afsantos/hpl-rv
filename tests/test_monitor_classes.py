@@ -11,7 +11,7 @@ from threading import Lock          # needed by PropertyMonitor
 from hpl.parser import property_parser
 
 from hplrv.monitors import MonitorState
-from hplrv.rendering import TemplateRenderer
+from hplrv.gen import TemplateRenderer
 
 from .common_data import *
 from .absence_traces import *
