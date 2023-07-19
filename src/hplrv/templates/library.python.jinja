@@ -43,6 +43,8 @@ NAN = float("nan")
 
 MsgRecord = namedtuple('MsgRecord', ('topic', 'timestamp', 'msg'))
 
+Verdict = namedtuple('Verdict', ('value', 'monitor', 'timestamp', 'witness'))
+
 
 ###############################################################################
 # Helper Functions
@@ -77,6 +79,7 @@ def prod(iterable):
 
 class HplMonitorManager:
     def __init__(self, success_cb=noop, failure_cb=noop):
+        self.verdicts = []
         self.success_cb = success_cb
         self.failure_cb = failure_cb
         self.monitors = [
@@ -91,6 +94,7 @@ class HplMonitorManager:
             mon.on_violation = partial(self._on_failure, i)
 
     def launch(self, timestamp):
+        self.verdicts = []
         for mon in self.monitors:
             mon.on_launch(timestamp)
 
@@ -114,9 +118,22 @@ class HplMonitorManager:
     def _on_success(self, i, timestamp, witness):
         mon = self.monitors[i]
         assert mon.verdict is True
+        self.verdicts.append(Verdict(True, i, timestamp, witness))
         self.success_cb(mon, timestamp, witness)
 
     def _on_failure(self, i, timestamp, witness):
         mon = self.monitors[i]
         assert mon.verdict is False
+        self.verdicts.append(Verdict(False, i, timestamp, witness))
         self.failure_cb(mon, timestamp, witness)
+
+    def build_report(self):
+        report = []
+        for mon in self.monitors:
+            report.append({
+                id: mon.PROP_ID,
+                title: mon.PROP_TITLE,
+                property: mon.HPL_PROPERTY,
+                verdict: mon.verdict,
+            })
+        return report
