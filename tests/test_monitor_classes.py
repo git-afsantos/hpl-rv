@@ -11,7 +11,7 @@ from threading import Lock          # needed by PropertyMonitor
 from hpl.parser import property_parser
 
 from hplrv.monitors import MonitorState
-from hplrv.gen import TemplateRenderer
+from hplrv.gen import MonitorGenerator
 
 from .common_data import *
 from .absence_traces import *
@@ -175,14 +175,14 @@ class TestMonitorClasses:
         self._reset()
         n = 0
         p = property_parser()
-        r = TemplateRenderer()
+        r = MonitorGenerator()
         for text, traces in all_types_of_property():
             hp = p.parse(text)
             self.pool_decay = ((hp.pattern.is_requirement
                     or hp.pattern.is_response
                     or hp.pattern.is_prevention)
                 and hp.pattern.has_max_time)
-            py = r.render_monitor(hp)
+            py = r.monitor_class(hp)
             m = self._make_monitor(py)
             for trace in traces:
                 n += 1

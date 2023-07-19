@@ -32,9 +32,9 @@ When used as a library, you can generate Python code for a runtime monitor class
 For example:
 
 ```python
-from hplrv.gen import monitor_from_property
-hpl_property = 'globally: no (/a or /b)'
-code = monitor_from_property(hpl_property)
+from hplrv.gen import lib_from_properties
+hpl_properties = ['globally: no (/a or /b)']
+code: str = lib_from_properties(hpl_properties)
 print(code)
 ```
 

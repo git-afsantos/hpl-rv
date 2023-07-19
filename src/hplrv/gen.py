@@ -10,11 +10,12 @@ high-level interface to generate runtime monitors from HPL properties.
 # Imports
 ###############################################################################
 
-from typing import Any, Dict, Final, List, Optional, Type, Union
+from typing import Any, Dict, Final, Iterable, List, Optional, Type, Union
 
 import argparse
 from pathlib import Path
 
+from attrs import field, frozen
 from hpl.ast import HplProperty, HplSpecification
 from hpl.parser import property_parser, specification_parser
 from jinja2 import Environment, PackageLoader
@@ -53,14 +54,14 @@ def monitors_from_files(paths: List[ANY_PATH]) -> List[str]:
     given a list of paths to HPL files with specifications.
     """
     parser = specification_parser()
-    r = TemplateRenderer()
+    r = MonitorGenerator()
     outputs: List[str] = []
     for input_path in paths:
         path: Path = Path(input_path).resolve(strict=True)
         text: str = path.read_text(encoding='utf-8').strip()
         spec: HplSpecification = parser.parse(text)
         for hpl_property in spec.properties:
-            outputs.append(r.render_monitor(hpl_property))
+            outputs.append(r.monitor_class(hpl_property))
     return outputs
 
 
@@ -70,14 +71,14 @@ def lib_from_files(paths: List[ANY_PATH]) -> str:
     given a list of paths to HPL files with specifications.
     """
     parser = specification_parser()
-    r = TemplateRenderer()
+    r = MonitorGenerator()
     properties: List[HplProperty] = []
     for input_path in paths:
         path: Path = Path(input_path).resolve(strict=True)
         text: str = path.read_text(encoding='utf-8').strip()
         spec: HplSpecification = parser.parse(text)
         properties.extend(spec.properties)
-    return r.render_monitor_library(properties)
+    return r.monitor_library(properties)
 
 
 def monitors_from_spec(spec: ANY_SPEC) -> List[str]:
@@ -88,10 +89,10 @@ def monitors_from_spec(spec: ANY_SPEC) -> List[str]:
     if not isinstance(spec, HplSpecification):
         parser = specification_parser()
         spec = parser.parse(spec)
-    r = TemplateRenderer()
+    r = MonitorGenerator()
     outputs: List[str] = []
     for hpl_property in spec.properties:
-        outputs.append(r.render_monitor(hpl_property))
+        outputs.append(r.monitor_class(hpl_property))
     return outputs
 
 
@@ -103,8 +104,8 @@ def lib_from_spec(spec: ANY_SPEC) -> str:
     if not isinstance(spec, HplSpecification):
         parser = specification_parser()
         spec = parser.parse(spec)
-    r = TemplateRenderer()
-    return r.render_monitor_library(spec.properties)
+    r = MonitorGenerator()
+    return r.monitor_library(spec.properties)
 
 
 def monitor_from_property(property: ANY_PROP) -> str:
@@ -114,8 +115,8 @@ def monitor_from_property(property: ANY_PROP) -> str:
     if not isinstance(property, HplProperty):
         parser = property_parser()
         property = parser.parse(property)
-    r = TemplateRenderer()
-    return r.render_monitor(property)
+    r = MonitorGenerator()
+    return r.monitor_class(property)
 
 
 def monitors_from_properties(properties: List[ANY_PROP]) -> List[str]:
@@ -124,12 +125,12 @@ def monitors_from_properties(properties: List[ANY_PROP]) -> List[str]:
     given a list of HPL properties.
     """
     parser = property_parser()
-    r = TemplateRenderer()
+    r = MonitorGenerator()
     outputs = []
     for property in properties:
         if not isinstance(property, HplProperty):
             property = parser.parse(property)
-        outputs.append(r.render_monitor(property))
+        outputs.append(r.monitor_class(property))
     return outputs
 
 
@@ -139,32 +140,65 @@ def lib_from_properties(properties: List[ANY_PROP]) -> str:
     given a list of HPL properties.
     """
     parser = property_parser()
-    r = TemplateRenderer()
+    r = MonitorGenerator()
     properties = [
         parser.parse(property)
         if not isinstance(property, HplProperty)
         else property
         for property in properties
     ]
-    return r.render_monitor_library(properties)
+    return r.monitor_library(properties)
 
 
+@frozen
 class TemplateRenderer:
-    def __init__(self):
-        self.jinja_env = Environment(
-            loader=PackageLoader('hplrv', 'templates'),
+    jinja_env: Environment
+
+    @classmethod
+    def from_pkg_data(
+        cls,
+        pkg: str = 'hplrv',
+        template_dir: str = 'templates'
+    ) -> 'TemplateRenderer':
+        return cls(Environment(
+            loader=PackageLoader(pkg, template_dir),
             line_statement_prefix=None,
             line_comment_prefix=None,
             trim_blocks=True,
             lstrip_blocks=True,
             autoescape=False,
-        )
+        ))
 
-    def render_monitor_library(self, hpl_properties):
+    def render_template(
+        self,
+        template_file: str,
+        data: Dict[str, Any],
+        strip: bool = True,
+        encoding: Optional[str] = None
+    ) -> str:
+        template = self.jinja_env.get_template(template_file)
+        text = template.render(**data)
+        if strip:
+            text = text.strip()
+        if encoding is None:
+            return text
+        return text.encode(encoding)
+
+
+@frozen
+class MonitorGenerator:
+    renderer: TemplateRenderer = field(factory=TemplateRenderer.from_pkg_data)
+
+    def monitor_library(
+        self,
+        spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
+    ) -> str:
         class_names = []
         callbacks = {}
         monitor_classes = []
-        for p in hpl_properties:
+        if isinstance(spec_or_properties, HplSpecification):
+            spec_or_properties = spec_or_properties.properties
+        for p in spec_or_properties:
             builder, template_file = self._template(p, True)
             i = len(class_names)
             builder.class_name = f'Property{i}Monitor'
@@ -180,7 +214,7 @@ class TemplateRenderer:
             'monitor_classes': monitor_classes,
             'callbacks': callbacks,
         }
-        return self._render_template('library.python.jinja', data)
+        return self.renderer.render_template('library.python.jinja', data)
 
     def render_rospy_node(self, hpl_properties, topic_types):
         class_names = []
@@ -212,12 +246,18 @@ class TemplateRenderer:
         }
         return self._render_template('rosnode.python.jinja', data)
 
-    def render_monitor(self, hpl_property, class_name=None, id_as_class=True, encoding=None):
+    def monitor_class(
+        self,
+        hpl_property: HplProperty,
+        class_name: Optional[str] = None,
+        id_as_class: bool = True,
+        encoding: Optional[str] = None,
+    ) -> str:
         builder, template_file = self._template(hpl_property, id_as_class)
         if class_name:
             builder.class_name = class_name
         data = {'state_machine': builder}
-        return self._render_template(template_file, data, encoding=encoding)
+        return self.renderer.render_template(template_file, data, encoding=encoding)
 
     def _template(self, hpl_property, id_as_class):
         if hpl_property.pattern.is_absence:
@@ -245,15 +285,6 @@ class TemplateRenderer:
             name = ''.join(word.title() for word in name.split("_") if word)
             builder.class_name = name + 'Monitor'
         return (builder, template_file)
-
-    def _render_template(self, template_file, data, strip=True, encoding=None):
-        template = self.jinja_env.get_template(template_file)
-        text = template.render(**data)
-        if strip:
-            text = text.strip()
-        if encoding is None:
-            return text
-        return text.encode(encoding)
 
 
 ###############################################################################
