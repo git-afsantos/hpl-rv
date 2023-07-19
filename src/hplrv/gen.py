@@ -38,11 +38,6 @@ ANY_PATH: Final[Type] = Union[Path, str]
 ANY_SPEC: Final[Type] = Union[HplSpecification, str]
 ANY_PROP: Final[Type] = Union[HplProperty, str]
 
-TEMPLATE_MONITOR: Final[str] = 'class'
-TEMPLATE_LIBRARY: Final[str] = 'lib'
-TEMPLATE_ROSNODE: Final[str] = 'ros'
-TEMPLATE_ROS2NODE: Final[str] = 'ros2'
-
 ###############################################################################
 # Public Interface
 ###############################################################################
@@ -193,6 +188,13 @@ class MonitorGenerator:
         self,
         spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
     ) -> str:
+        data = self.data_for_monitor_library(spec_or_properties)
+        return self.renderer.render_template('library.python.jinja', data)
+
+    def data_for_monitor_library(
+        self,
+        spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
+    ) -> Dict[str, Any]:
         class_names = []
         callbacks = {}
         monitor_classes = []
@@ -209,42 +211,11 @@ class MonitorGenerator:
                 callbacks[name].add(i)
             data = {'state_machine': builder}
             monitor_classes.append(self._render_template(template_file, data))
-        data = {
+        return {
             'class_names': class_names,
             'monitor_classes': monitor_classes,
             'callbacks': callbacks,
         }
-        return self.renderer.render_template('library.python.jinja', data)
-
-    def render_rospy_node(self, hpl_properties, topic_types):
-        class_names = []
-        topics = {}
-        callbacks = {}
-        monitor_classes = []
-        for p in hpl_properties:
-            builder, template_file = self._template(p, True)
-            i = len(class_names)
-            builder.class_name = f'Property{i}Monitor'
-            class_names.append(builder.class_name)
-            for name in builder.on_msg:
-                topics[name] = topic_types[name]
-                if name not in callbacks:
-                    callbacks[name] = set()
-                callbacks[name].add(i)
-            data = {'state_machine': builder}
-            monitor_classes.append(self._render_template(template_file, data))
-        ros_imports = {'std_msgs'}
-        for name in topics.values():
-            pkg, msg = name.split('/')
-            ros_imports.add(pkg)
-        data = {
-            'class_names': class_names,
-            'monitor_classes': monitor_classes,
-            'topics': topics,
-            'ros_imports': ros_imports,
-            'callbacks': callbacks,
-        }
-        return self._render_template('rosnode.python.jinja', data)
 
     def monitor_class(
         self,
@@ -253,11 +224,27 @@ class MonitorGenerator:
         id_as_class: bool = True,
         encoding: Optional[str] = None,
     ) -> str:
+        data = self.data_for_monitor_class(
+            hpl_property,
+            class_name=class_name,
+            id_as_class=id_as_class,
+        )
+        template_file = data['template_file']
+        return self.renderer.render_template(template_file, data, encoding=encoding)
+
+    def data_for_monitor_class(
+        self,
+        hpl_property: HplProperty,
+        class_name: Optional[str] = None,
+        id_as_class: bool = True,
+    ) -> Dict[str, Any]:
         builder, template_file = self._template(hpl_property, id_as_class)
         if class_name:
             builder.class_name = class_name
-        data = {'state_machine': builder}
-        return self.renderer.render_template(template_file, data, encoding=encoding)
+        return {
+            'template_file': template_file,
+            'state_machine': builder,
+        }
 
     def _template(self, hpl_property, id_as_class):
         if hpl_property.pattern.is_absence:
@@ -303,9 +290,15 @@ def subprogram(
 def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
     parts: List[str] = []
     if args.get('files'):
-        parts.extend(monitors_from_files(args['args']))
+        if args.get('just_classes'):
+            parts.extend(monitors_from_files(args['args']))
+        else:
+            parts.append(lib_from_files(args['args']))
     else:
-        parts.extend(monitors_from_properties(args['args']))
+        if args.get('just_classes'):
+            parts.extend(monitors_from_properties(args['args']))
+        else:
+            parts.append(lib_from_properties(args['args']))
     output: str = '\n\n'.join(code for code in parts)
 
     input_path: str = args.get('output')
@@ -336,11 +329,11 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
     )
 
     parser.add_argument(
-        '-t',
-        '--template',
-        default=TEMPLATE_MONITOR,
-        choices=[TEMPLATE_MONITOR, TEMPLATE_LIBRARY, TEMPLATE_ROSNODE, TEMPLATE_ROS2NODE],
-        help='which template to use for generated code (default: class)',
+        '-c',
+        '--class',
+        dest='just_classes',
+        action='store_true',
+        help='output just the monitor classes (default: false)',
     )
 
     parser.add_argument('args', nargs='+', help='input properties')
