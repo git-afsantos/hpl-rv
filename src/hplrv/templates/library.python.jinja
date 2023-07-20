@@ -12,8 +12,11 @@
 # Imports
 ###############################################################################
 
+import asyncio
 from collections import deque, namedtuple
+from copy import deepcopy
 from functools import partial
+import json
 from math import (
     acos,
     asin,
@@ -41,6 +44,8 @@ from threading import Lock
 INF = float("inf")
 NAN = float("nan")
 
+COMPACT = (',', ':')
+
 MsgRecord = namedtuple('MsgRecord', ('topic', 'timestamp', 'msg'))
 
 Verdict = namedtuple('Verdict', ('value', 'monitor', 'timestamp', 'witness'))
@@ -64,6 +69,26 @@ def prod(iterable):
     return x
 
 
+def _verdict_to_json(verdict):
+    witness = _witness_to_json(verdict.witness)
+    return {
+        'value': verdict.value,
+        'monitor': verdict.monitor,
+        'timestamp': verdict.timestamp,
+        'witness': witness,
+    }
+
+def _witness_to_json(witness):
+    data = []
+    for record in witness:
+        data.append({
+            'topic': record.topic,
+            'timestamp': record.timestamp,
+            'messsage': repr(record.msg),
+        })
+    return data
+
+
 ###############################################################################
 # Monitor Classes
 ###############################################################################
@@ -73,25 +98,47 @@ def prod(iterable):
 
 
 ###############################################################################
-# Monitor Aggregator
+# Monitor Manager
 ###############################################################################
+
+
+class VerdictAggregator:
+    def __init__(self, num_monitors=0):
+        self._lock = Lock()
+        self._verdicts = [None] * num_monitors
+
+    def get(self, in_order=False):
+        with self._lock:
+            verdicts = list(self._verdicts)
+        if in_order:
+            verdicts.sort(key=lambda v: v.timestamp)
+        return verdicts
+
+    def set(self, i, value, timestamp, witness):
+        with self._lock:
+            v = Verdict(value, i, timestamp, witness)
+            self._verdicts[i] = v
+            return v
 
 
 class HplMonitorManager:
     def __init__(self, success_cb=noop, failure_cb=noop):
-        self.verdicts = []
-        self.success_cb = success_cb
-        self.failure_cb = failure_cb
+        self.on_monitor_success = success_cb
+        self.on_monitor_failure = failure_cb
         self.monitors = [
             {# -#}
         {% for cname in class_names %}
             {{ cname }}(),
         {% endfor %}
         ]
-        for i in range(len(self.monitors)):
+        n = len(self.monitors)
+        self.verdicts = VerdictAggregator(n)
+        for i in range(n):
             mon = self.monitors[i]
             mon.on_success = partial(self._on_success, i)
             mon.on_violation = partial(self._on_failure, i)
+        self.live_server = LiveMonitoringServer()
+        self.live_server.monitor_report = self.build_status_report()
 
     def launch(self, timestamp):
         self.verdicts = []
@@ -118,22 +165,116 @@ class HplMonitorManager:
     def _on_success(self, i, timestamp, witness):
         mon = self.monitors[i]
         assert mon.verdict is True
-        self.verdicts.append(Verdict(True, i, timestamp, witness))
-        self.success_cb(mon, timestamp, witness)
+        self.verdicts.set(i, True, timestamp, witness)
+        self.on_monitor_success(mon, timestamp, witness)
 
     def _on_failure(self, i, timestamp, witness):
         mon = self.monitors[i]
         assert mon.verdict is False
-        self.verdicts.append(Verdict(False, i, timestamp, witness))
-        self.failure_cb(mon, timestamp, witness)
+        self.verdicts.set(i, False, timestamp, witness)
+        self.live_server.on_monitor_failure(i, timestamp, witness)
+        self.on_monitor_failure(mon, timestamp, witness)
 
-    def build_report(self):
+    def build_status_report(self):
         report = []
         for mon in self.monitors:
             report.append({
-                id: mon.PROP_ID,
-                title: mon.PROP_TITLE,
-                property: mon.HPL_PROPERTY,
-                verdict: mon.verdict,
+                'id': mon.PROP_ID,
+                'title': mon.PROP_TITLE,
+                'property': mon.HPL_PROPERTY,
+                'verdict': mon.verdict,
             })
         return report
+
+
+###############################################################################
+# Live Monitoring
+###############################################################################
+
+# This is meant to be running on an async loop.
+# You might want to run this on a separate thread,
+# rather than the one used to run HplMonitorManager,
+# if the message feed is built on a synchronous interface.
+
+# Use `HplMonitorManager.build_status_report` to initialize
+# the `monitor_report` attribute.
+
+
+class LiveMonitoringServer:
+    def __init__(self, host='127.0.0.1', port=4242):
+        self.host = host
+        self.port = port
+        self.monitor_report = []
+        self.shutdown_requested = False
+        self._lock = Lock()
+        self._event_loop = None
+        self._clients = []
+
+    def run(self):
+        asyncio.run(self._run_server())
+
+    async def _run_server(self):
+        with self._lock:
+            self._event_loop = asyncio.get_event_loop()
+        server = await asyncio.start_server(self._handle_client, self.host, self.port)
+        async with server:
+            while not self.shutdown_requested:
+                await server.serve_forever()
+
+    async def _handle_client(self, reader, writer):
+        client = LiveMonitoringClient(reader, writer)
+        self._clients.append(client)
+        with self._lock:
+            report = deepcopy(self.monitor_report)
+        await client.send_initial_report(report)
+        await client.run_loop()
+
+    def on_monitor_success(self, i, timestamp, witness):
+        # to be called from outside the event loop
+        v = Verdict(True, i, timestamp, witness)
+        w = _witness_to_json(witness)
+        with self._lock:
+            self.monitor_report[i]['verdict'] = True
+            self.monitor_report[i]['witness'] = w
+            if self._event_loop is not None:
+                coro = self._push_update(v)
+                asyncio.run_coroutine_threadsafe(coro, self._event_loop)
+
+    def on_monitor_failure(self, i, timestamp, witness):
+        # to be called from outside the event loop
+        v = Verdict(False, i, timestamp, witness)
+        w = _witness_to_json(witness)
+        with self._lock:
+            self.monitor_report[i]['verdict'] = False
+            self.monitor_report[i]['witness'] = w
+            if self._event_loop is not None:
+                coro = self._push_update(v)
+                asyncio.run_coroutine_threadsafe(coro, self._event_loop)
+
+    async def _push_update(self, verdict):
+        for client in self.clients:
+            await client.verdict_queue.put(verdict)
+
+
+class LiveMonitoringClient:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+        self.verdict_queue = asyncio.Queue()
+
+    async def send_initial_report(self, report):
+        data = json.dumps(report, separators=COMPACT) + '\n'
+        writer.write(data.encode('utf8'))
+        await writer.drain()
+
+    async def run_loop(self):
+        verdict = await self.verdict_queue.get()
+        while verdict:
+            data = _verdict_to_json(verdict)
+            data = json.dumps(data, separators=COMPACT) + '\n'
+            writer.write(data.encode('utf8'))
+            await writer.drain()
+            self.verdict_queue.task_done()
+            verdict = await self.verdict_queue.get()
+        self.verdict_queue.task_done()
+        writer.close()
