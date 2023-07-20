@@ -1,10 +1,3 @@
-{# SPDX-License-Identifier: MIT #}
-{# Copyright © 2021 André Santos #}
-
-{##############################################################################}
-{# RENDERED CODE #}
-{##############################################################################}
-
 # SPDX-License-Identifier: MIT
 # Copyright © 2023 André Santos
 
@@ -94,7 +87,239 @@ def _witness_to_json(witness):
 ###############################################################################
 
 
-{{ monitor_classes|join('\n\n\n') }}
+class Property0Monitor:
+    __slots__ = (
+        '_lock',          # concurrency control
+        '_state',         # currently active state
+        'witness',        # MsgRecord list of observed events
+        'on_enter_scope', # callback upon entering the scope
+        'on_exit_scope',  # callback upon exiting the scope
+        'on_violation',   # callback upon verdict of False
+        'on_success',     # callback upon verdict of True
+        'time_launch',    # when was the monitor launched
+        'time_shutdown',  # when was the monitor shutdown
+        'time_state',     # when did the last state transition occur
+        'cb_map',         # mapping of topic names to callback functions
+    )
+
+    PROP_ID = 'None'
+    PROP_TITLE = '''None'''
+    PROP_DESC = '''None'''
+    HPL_PROPERTY = r'''globally: no /a { (x < 0) }'''
+
+    def __init__(self):
+        self._lock = Lock()
+        self._reset()
+        self.on_enter_scope = self._noop
+        self.on_exit_scope = self._noop
+        self.on_violation = self._noop
+        self.on_success = self._noop
+        self._state = 0
+        self.cb_map = {
+            '/a': self.on_msg__a,
+        }
+
+    @property
+    def verdict(self):
+        # with self._lock:
+        s = self._state
+        if s == -1:
+            return True
+        if s == -2:
+            return False
+        return None
+
+    @property
+    def is_online_state(self):
+        # with self._lock:
+        s = self._state
+        return s != 0
+
+    @property
+    def is_inactive_state(self):
+        # with self._lock:
+        return self._state == 1
+
+    @property
+    def is_active_state(self):
+        # with self._lock:
+        return self._state == 2
+
+    @property
+    def is_safe_state(self):
+        # with self._lock:
+        return self._state == 3
+
+    @property
+    def is_falsifiable_state(self):
+        # with self._lock:
+        return self._state == 2
+
+    def on_launch(self, stamp):
+        with self._lock:
+            if self._state != 0:
+                raise RuntimeError('monitor is already turned on')
+            self._reset()
+            self.time_launch = stamp
+            self._state = MonitorState.ACTIVE
+            self.time_state = stamp
+            self.on_enter_scope(stamp)
+        return True
+
+    def on_shutdown(self, stamp):
+        with self._lock:
+            if self._state == 0:
+                raise RuntimeError('monitor is already turned off')
+            self.time_shutdown = stamp
+            self._state = 0
+            self.time_state = stamp
+        return True
+
+    def on_timer(self, stamp):
+        return True
+
+    def on_msg__a(self, msg, stamp):
+        with self._lock:
+            if self._state == MonitorState.ACTIVE:
+                if (msg.x < 0):
+                    self.witness.append(MsgRecord('/a', stamp, msg))
+                    self._state = -2
+                    self.time_state = stamp
+                    self.on_violation(stamp, self.witness)
+                    return True
+        return False
+
+    def _reset(self):
+        self.witness = []
+        self.time_launch = -1
+        self.time_shutdown = -1
+        self.time_state = -1
+
+
+    def _noop(self, *args):
+        pass
+
+
+class Property1Monitor:
+    __slots__ = (
+        '_lock',          # concurrency control
+        '_state',         # currently active state
+        'witness',        # MsgRecord list of observed events
+        'on_enter_scope', # callback upon entering the scope
+        'on_exit_scope',  # callback upon exiting the scope
+        'on_violation',   # callback upon verdict of False
+        'on_success',     # callback upon verdict of True
+        'time_launch',    # when was the monitor launched
+        'time_shutdown',  # when was the monitor shutdown
+        'time_state',     # when did the last state transition occur
+        'cb_map',         # mapping of topic names to callback functions
+    )
+
+    PROP_ID = 'None'
+    PROP_TITLE = '''None'''
+    PROP_DESC = '''None'''
+    HPL_PROPERTY = r'''globally: no /a { (x > 0) } within 0.1s'''
+
+    def __init__(self):
+        self._lock = Lock()
+        self._reset()
+        self.on_enter_scope = self._noop
+        self.on_exit_scope = self._noop
+        self.on_violation = self._noop
+        self.on_success = self._noop
+        self._state = 0
+        self.cb_map = {
+            '/a': self.on_msg__a,
+        }
+
+    @property
+    def verdict(self):
+        # with self._lock:
+        s = self._state
+        if s == -1:
+            return True
+        if s == -2:
+            return False
+        return None
+
+    @property
+    def is_online_state(self):
+        # with self._lock:
+        s = self._state
+        return s != 0
+
+    @property
+    def is_inactive_state(self):
+        # with self._lock:
+        return self._state == 1
+
+    @property
+    def is_active_state(self):
+        # with self._lock:
+        return self._state == 2
+
+    @property
+    def is_safe_state(self):
+        # with self._lock:
+        return self._state == 3
+
+    @property
+    def is_falsifiable_state(self):
+        # with self._lock:
+        return self._state == 2
+
+    def on_launch(self, stamp):
+        with self._lock:
+            if self._state != 0:
+                raise RuntimeError('monitor is already turned on')
+            self._reset()
+            self.time_launch = stamp
+            self._state = MonitorState.ACTIVE
+            self.time_state = stamp
+            self.on_enter_scope(stamp)
+        return True
+
+    def on_shutdown(self, stamp):
+        with self._lock:
+            if self._state == 0:
+                raise RuntimeError('monitor is already turned off')
+            self.time_shutdown = stamp
+            self._state = 0
+            self.time_state = stamp
+        return True
+
+    def on_timer(self, stamp):
+        with self._lock:
+            if self._state == 2 and (stamp - self.time_state) >= 0.1:
+                self._state = -1
+                self.time_state = stamp
+                self.on_success(stamp, self.witness)
+        return True
+
+    def on_msg__a(self, msg, stamp):
+        with self._lock:
+            if self._state == 2 and (stamp - self.time_state) >= 0.1:
+                self._state = -1
+                self.time_state = stamp
+                self.on_success(stamp, self.witness)
+            if self._state == MonitorState.ACTIVE:
+                if (msg.x > 0):
+                    self.witness.append(MsgRecord('/a', stamp, msg))
+                    self._state = -2
+                    self.time_state = stamp
+                    self.on_violation(stamp, self.witness)
+                    return True
+        return False
+
+    def _reset(self):
+        self.witness = []
+        self.time_launch = -1
+        self.time_shutdown = -1
+        self.time_state = -1
+
+
+    def _noop(self, *args):
+        pass
 
 
 ###############################################################################
@@ -107,10 +332,8 @@ class HplMonitorManager:
         self.on_monitor_success = success_cb
         self.on_monitor_failure = failure_cb
         self.monitors = [
-            {# -#}
-        {% for cname in class_names %}
-            {{ cname }}(),
-        {% endfor %}
+            Property0Monitor(),
+            Property1Monitor(),
         ]
         n = len(self.monitors)
         for i in range(n):
@@ -138,15 +361,10 @@ class HplMonitorManager:
     def on_timer(self, timestamp):
         for mon in self.monitors:
             mon.on_timer(timestamp)
-    {# -#}
-{% for topic, indices in callbacks.items() %}
 
-    {% set cbname = 'on_msg_' ~ topic.replace('/', '_') %}
-    def {{ cbname }}(self, msg, timestamp):
-        {% for i in indices %}
-        self.monitors[{{ i }}].{{ cbname }}(msg, timestamp)
-        {% endfor %}
-{% endfor %}
+    def on_msg__a(self, msg, timestamp):
+        self.monitors[0].on_msg__a(msg, timestamp)
+        self.monitors[1].on_msg__a(msg, timestamp)
 
     def _on_success(self, i, timestamp, witness):
         mon = self.monitors[i]

@@ -210,7 +210,7 @@ class MonitorGenerator:
                     callbacks[name] = set()
                 callbacks[name].add(i)
             data = {'state_machine': builder}
-            monitor_classes.append(self._render_template(template_file, data))
+            monitor_classes.append(self.renderer.render_template(template_file, data))
         return {
             'class_names': class_names,
             'monitor_classes': monitor_classes,
