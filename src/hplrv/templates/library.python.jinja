@@ -120,18 +120,13 @@ class HplMonitorManager:
         self.live_server = LiveMonitoringServer()
         self.live_server.monitor_report = self.build_status_report()
 
-    def start_live_server_thread(self, timeout=None):
-        thread = Thread(target=self.live_server.run, name='live update server', daemon=True)
-        thread.start()
-        self.live_server.has_started.wait(timeout=timeout)
-        return thread
-
     def launch(self, timestamp):
         for mon in self.monitors:
             mon.on_launch(timestamp)
 
     def shutdown(self, timestamp):
-        self.live_server.shutdown_requested.set()
+        # self.live_server.shutdown_requested.set()
+        self.live_server.shutdown()
         for mon in self.monitors:
             mon.on_shutdown(timestamp)
 
@@ -191,35 +186,61 @@ class LiveMonitoringServer:
         self.port = port
         self.monitor_report = []
         self.has_started = ThreadingEvent()
-        self.shutdown_requested = ThreadingEvent()
+        # self.shutdown_requested = ThreadingEvent()
         self._lock = Lock()
         self._event_loop = None
         self._clients = []
 
+    def start_thread(self, timeout: float = None) -> Thread:
+        thread = Thread(target=self.run, name='live update server', daemon=True)
+        thread.start()
+        self.has_started.wait(timeout=timeout)
+        return thread
+
+    def shutdown(self):
+        # to be called from outside the event loop thread
+        with self._lock:
+            if self._event_loop is not None:
+                coro = self._cancel_all_tasks()
+                asyncio.run_coroutine_threadsafe(coro, self._event_loop)
+
+    async def _cancel_all_tasks(self):
+        await asyncio.sleep(0)
+        tasks = set(asyncio.all_tasks()) - {asyncio.current_task()}
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     def run(self):
         # to be called from the dedicated thread
-        self.shutdown_requested.clear()
+        # self.shutdown_requested.clear()
         self.has_started.set()
-        asyncio.run(self._run_server())
+        try:
+            asyncio.run(self._run_server())
+        except asyncio.CancelledError:
+            pass
 
     async def _run_server(self):
         with self._lock:
             self._event_loop = asyncio.get_event_loop()
-        server = await asyncio.start_server(self._handle_client, self.host, self.port)
-        async with server:
-            # await server.serve_forever()
-            while not self.shutdown_requested.is_set():
-                await asyncio.sleep(1.0)
-        await self._push_update(None)  # poison pill
-        with self._lock:
-            self._event_loop = None
+        try:
+            server = await asyncio.start_server(self._handle_client, self.host, self.port)
+            async with server:
+                await server.serve_forever()
+                #while not self.shutdown_requested.is_set():
+                #    await asyncio.sleep(1.0)
+            await self._push_update(None)  # poison pill
+        finally:
+            with self._lock:
+                self._event_loop = None
 
     async def _handle_client(self, reader, writer):
         client = LiveMonitoringClient(reader, writer)
         self._clients.append(client)
         with self._lock:
             report = deepcopy(self.monitor_report)
-        if not self.shutdown_requested.is_set():
+        # if not self.shutdown_requested.is_set():
+        async with client:
             await client.send_initial_report(report)
             await client.run_loop()
 
@@ -256,6 +277,16 @@ class LiveMonitoringClient:
         self.writer = writer
         self.verdict_queue = asyncio.Queue()
 
+    async def __aenter__(self):
+        return
+
+    async def __aexit__(self, *args):
+        await self.close()
+
+    async def close(self):
+        self.writer.close()
+        await self.writer.wait_closed()
+
     async def send_initial_report(self, report):
         data = json.dumps(report, separators=COMPACT) + '\n'
         self.writer.write(data.encode('utf8'))
@@ -271,4 +302,3 @@ class LiveMonitoringClient:
             self.verdict_queue.task_done()
             verdict = await self.verdict_queue.get()
         self.verdict_queue.task_done()
-        self.writer.close()

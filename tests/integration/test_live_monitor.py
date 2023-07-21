@@ -56,7 +56,7 @@ def test_live_monitoring_server():
     man = lib.HplMonitorManager()
     man.live_server.host = HOST
     man.live_server.port = PORT
-    thread: Thread = man.start_live_server_thread()
+    thread: Thread = man.live_server.start_thread()
     asyncio.run(integration_task(man, thread))
 
 
