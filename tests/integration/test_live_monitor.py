@@ -63,16 +63,16 @@ def test_live_monitoring_server():
 async def integration_task(man, thread: Thread):
     reader, writer = await asyncio.open_connection(HOST, PORT)
     report = await reader.readline()
-    assert report.startswith('[')
+    assert report.decode('utf8').startswith('[')
     man.launch(0.0)
     man.on_timer(0.2)
     assert man.monitors[1].verdict is True
     report = await reader.readline()
-    assert report.startswith('{')
+    assert report.decode('utf8').startswith('{')
     man.on_msg__a(Point2D(x=-1), 0.5)
-    assert man.monitors[1].verdict is False
+    assert man.monitors[0].verdict is False
     report = await reader.readline()
-    assert report.startswith('{')
+    assert report.decode('utf8').startswith('{')
     man.shutdown(1.0)
     thread.join(10.0)
     assert not thread.is_alive()

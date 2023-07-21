@@ -118,7 +118,7 @@ class {{ sm.class_name }}:
                 raise RuntimeError('monitor is already turned on')
             self._reset()
             self.time_launch = stamp
-            {{ change_to_state(sm.initial_state, returns=false, enters_scope=sm.launch_enters_scope)|indent(12) }}{#- #}
+            {{ change_to_state(sm.initial_state.value, returns=false, enters_scope=sm.launch_enters_scope)|indent(12) }}{#- #}
         return True
 
     def on_shutdown(self, stamp):
@@ -144,9 +144,9 @@ class {{ sm.class_name }}:
 {{ caller(CALLBACK_TIMER)|indent(12, first=true) }}
             {%- endif %}
             {% for state, events in states.items() %}
-            if self._state == {{ state }}:
+            if self._state == {{ state.value }}:
                 {% for event in events %}{# -#}
-{{ caller(CALLBACK_MSG, event, topic, state)|indent(16, first=true) }}
+{{ caller(CALLBACK_MSG, event, topic, state.value)|indent(16, first=true) }}
                 {% endfor %}
             {% endfor %}
         return False

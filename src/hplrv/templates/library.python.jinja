@@ -35,7 +35,7 @@ from math import (
     sqrt,
     tan,
 )
-from threading import Lock, Thread
+from threading import Event as ThreadingEvent, Lock, Thread
 
 ###############################################################################
 # Constants and Data Structures
@@ -120,20 +120,20 @@ class HplMonitorManager:
         self.live_server = LiveMonitoringServer()
         self.live_server.monitor_report = self.build_status_report()
 
-    def start_live_server_thread(self):
-        thread = Thread(target=self.live_server.run, name='live update server')
+    def start_live_server_thread(self, timeout=None):
+        thread = Thread(target=self.live_server.run, name='live update server', daemon=True)
         thread.start()
+        self.live_server.has_started.wait(timeout=timeout)
         return thread
 
     def launch(self, timestamp):
-        self.verdicts = []
         for mon in self.monitors:
             mon.on_launch(timestamp)
 
     def shutdown(self, timestamp):
+        self.live_server.shutdown_requested.set()
         for mon in self.monitors:
             mon.on_shutdown(timestamp)
-        self.live_server.request_shutdown()
 
     def on_timer(self, timestamp):
         for mon in self.monitors:
@@ -190,24 +190,16 @@ class LiveMonitoringServer:
         self.host = host
         self.port = port
         self.monitor_report = []
-        self.shutdown_requested = asyncio.Event()
+        self.has_started = ThreadingEvent()
+        self.shutdown_requested = ThreadingEvent()
         self._lock = Lock()
         self._event_loop = None
         self._clients = []
 
-    def request_shutdown(self):
-        # to be called from outside the dedicated thread
-        with self._lock:
-            if self._event_loop is not None:
-                coro = self._request_shutdown()
-                asyncio.run_coroutine_threadsafe(coro, self._event_loop)
-
-    async def _request_shutdown(self):
-        await asyncio.sleep(0)
-        self.shutdown_requested.set()
-
     def run(self):
         # to be called from the dedicated thread
+        self.shutdown_requested.clear()
+        self.has_started.set()
         asyncio.run(self._run_server())
 
     async def _run_server(self):
@@ -216,7 +208,8 @@ class LiveMonitoringServer:
         server = await asyncio.start_server(self._handle_client, self.host, self.port)
         async with server:
             # await server.serve_forever()
-            await self.shutdown_requested.wait()
+            while not self.shutdown_requested.is_set():
+                await asyncio.sleep(1.0)
         await self._push_update(None)  # poison pill
         with self._lock:
             self._event_loop = None
@@ -253,7 +246,7 @@ class LiveMonitoringServer:
                 asyncio.run_coroutine_threadsafe(coro, self._event_loop)
 
     async def _push_update(self, verdict):
-        for client in self.clients:
+        for client in self._clients:
             await client.verdict_queue.put(verdict)
 
 
@@ -265,17 +258,17 @@ class LiveMonitoringClient:
 
     async def send_initial_report(self, report):
         data = json.dumps(report, separators=COMPACT) + '\n'
-        writer.write(data.encode('utf8'))
-        await writer.drain()
+        self.writer.write(data.encode('utf8'))
+        await self.writer.drain()
 
     async def run_loop(self):
         verdict = await self.verdict_queue.get()
         while verdict:
             data = _verdict_to_json(verdict)
             data = json.dumps(data, separators=COMPACT) + '\n'
-            writer.write(data.encode('utf8'))
-            await writer.drain()
+            self.writer.write(data.encode('utf8'))
+            await self.writer.drain()
             self.verdict_queue.task_done()
             verdict = await self.verdict_queue.get()
         self.verdict_queue.task_done()
-        writer.close()
+        self.writer.close()
