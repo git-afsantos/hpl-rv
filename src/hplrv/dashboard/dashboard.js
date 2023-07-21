@@ -37,6 +37,37 @@ const STRING_REGEX = /("(?:\\?[\S\s])*?")/g;
 const BOOLEAN_REGEX = /(\W)(true|false)(\W)/ig;
 
 // -----------------------------------------------------------------------------
+//  Utility
+// -----------------------------------------------------------------------------
+
+
+async function postData(url = "", data = {}) {
+  // Default options are marked with *
+  const response = await fetch(url, {
+    method: "POST",
+    // mode: "cors", // no-cors, *cors, same-origin
+    cache: "no-cache",
+    // credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",  // application/x-www-form-urlencoded
+    },
+    // redirect: "follow", // manual, *follow, error
+    // referrerPolicy: "no-referrer", // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+    body: JSON.stringify(data),
+  });
+  if (response.ok) {
+    return response.json();
+  }
+  return response.json().then((data) => {
+    const error = new Error(response.status);
+    error.response = data;
+    error.status = response.status;
+    throw error;
+  });
+}
+
+
+// -----------------------------------------------------------------------------
 //  Components
 // -----------------------------------------------------------------------------
 
@@ -96,15 +127,24 @@ const app = createApp({
 
   data() {
     return {
-      title: "",
-      text: "",
+      host: "127.0.0.1",
+      port: 4242,
     };
   },
 
   computed: {},
 
   methods: {
-    onSetupDone() {}
+    onSetupDone() {},
+
+    connectToLiveMonitor() {
+      postData("/live", {
+        host: this.host,
+        port: this.port,
+      })
+      .then(() => alert("Connected to server!"))
+      .catch((reason) => alert(`Error: ${reason}`));
+    }
   },
 
   mounted() {

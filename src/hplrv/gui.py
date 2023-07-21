@@ -10,19 +10,19 @@ dashboard server to manage runtime monitors.
 # Imports
 ###############################################################################
 
-from typing import Any, Dict, Final, List, Optional, Set, Type, Union
+from typing import Any, Callable, Dict, Final, List, Optional, Set, Tuple, Type
 
 import argparse
-import asyncio
-from copy import deepcopy
 import json
 from pathlib import Path
 import pkg_resources
-from threading import Event, Lock, Thread
 
-from attrs import field, frozen
-from bottle import Bottle, run as serve_forever, static_file
+from attrs import define, field, frozen
+from bottle import Bottle, request, response, run as serve_forever, static_file
 from bottle.ext.websocket import GeventWebSocketServer, websocket
+import gevent
+from gevent.queue import Queue
+from gevent.socket import create_connection, socket
 
 # from hpl.ast import HplProperty, HplSpecification
 # from hpl.parser import property_parser, specification_parser
@@ -39,48 +39,202 @@ CLIENT_ROOT: Final[str] = str(
     .parent
 )
 
+WS_UPDATE_CB_TYPE: Final[Type] = Callable[[Dict[str, Any]], None]
+
+COMPACT: Final[Tuple[str, str]] = (',', ':')
+
+
+def noop(*args, **kwargs):
+    pass
+
+
 ###############################################################################
-# Live Monitoring Client
+# Live Monitoring Client/Server
 ###############################################################################
+
+
+@define
+class SocketStreamReader:
+    # taken from
+    # https://stackoverflow.com/a/65637828
+
+    _sock: socket
+    _recv_buffer: bytearray = field(factory=bytearray, init=False, eq=False)
+
+    def read(self, num_bytes: int = -1) -> bytes:
+        raise NotImplementedError
+
+    def readline(self) -> str:
+        return self.readuntil(b'\n').decode('utf8')
+
+    def readuntil(self, separator: bytes = b'\n') -> bytes:
+        if len(separator) != 1:
+            raise ValueError('Only separators of length 1 are supported.')
+
+        chunk = bytearray(4096)
+        start = 0
+        buf = bytearray(len(self._recv_buffer))
+        bytes_read = self._recv_into(memoryview(buf))
+        assert bytes_read == len(buf)
+
+        while True:
+            idx = buf.find(separator, start)
+            if idx != -1:
+                break
+
+            start = len(self._recv_buffer)
+            bytes_read = self._recv_into(memoryview(chunk))
+            buf += memoryview(chunk)[:bytes_read]
+
+        result = bytes(buf[: idx + 1])
+        self._recv_buffer = b''.join(
+            (memoryview(buf)[idx + 1 :], self._recv_buffer)
+        )
+        return result
+
+    def _recv_into(self, view: memoryview) -> int:
+        bytes_read = min(len(view), len(self._recv_buffer))
+        view[:bytes_read] = self._recv_buffer[:bytes_read]
+        self._recv_buffer = self._recv_buffer[bytes_read:]
+        if bytes_read == len(view):
+            return bytes_read
+        bytes_read += self._sock.recv_into(view[bytes_read:])
+        return bytes_read
+
+
+@frozen
+class LiveMonitoringServer:
+    """
+    A gevent greenlet to handle live monitoring status updates.
+    If handling multiple multiple live monitoring sources, it is
+    preferred to use a shared `updates` queue to make waiting easier.
+    """
+
+    host: str
+    port: int
+    on_update: WS_UPDATE_CB_TYPE = field(default=noop, eq=False, order=False)
+    monitors: List[Dict[str, Any]] = field(factory=list, init=False, eq=False, order=False)
+    _socket: Optional[socket] = field(default=None, init=False, eq=False, order=False)
+
+    @property
+    def is_connected(self) -> bool:
+        return self._socket is not None
+
+    def connect(self):
+        if self._socket is None:
+            s = create_connection((self.host, self.port))
+            object.__setattr__(self, "_socket", s)
+
+    def run(self):
+        try:
+            with self._socket:
+                reader = SocketStreamReader(s)
+
+                # read initial monitor report
+                data = reader.readline()
+                if not data:
+                    return
+                self.monitors.clear()
+                self.monitors.extend(json.loads(data))
+                self.push_status()
+
+                # read status updates
+                data = reader.readline()
+                while data:
+                    verdict = json.loads(data)
+                    self.push_verdict(verdict)
+                    data = reader.readline()
+        finally:
+            object.__setattr__(self, "_socket", None)
+
+    def push_status(self):
+        for i in range(len(self.monitors)):
+            monitor = self.monitors[i]
+            self.on_update({
+                'server': f'{self.host}:{self.port}',
+                'id': i,
+                'monitor': monitor,
+            })
+
+    def push_verdict(self, verdict: Dict[str, Any]):
+        i = verdict['monitor']
+        monitor = self.monitors[i]
+        monitor['verdict'] = verdict['value']
+        monitor['witness'] = verdict['witness']
+        self.on_update({
+            'server': f'{self.host}:{self.port}',
+            'id': i,
+            'monitor': monitor,
+        })
+
+    def asdict(self) -> Dict[str, Any]:
+        return {
+            'host': self.host,
+            'port': self.port,
+        }
+
+
+# @frozen
+# class LiveMonitoringClient2:
+#     host: str
+#     port: int
+#     lock: Lock = field(factory=Lock, init=False, eq=False)
+#     has_started: Event = field(factory=Event, init=False, eq=False)
+#     monitor_report: List[Dict[str, Any]] = field(factory=list, init=False, eq=False)
+# 
+#     def get_monitor_status(self) -> List[Dict[str, Any]]:
+#         with self.lock:
+#             return deepcopy(self.monitor_report)
+# 
+#     def run(self):
+#         # to be called from the dedicated thread
+#         self.has_started.set()
+#         try:
+#             asyncio.run(self._run_client())
+#         except asyncio.CancelledError:
+#             pass
+# 
+#     async def _run_client(self):
+#         reader, _writer = await asyncio.open_connection(self.host, self.port)
+#         # read initial status report
+#         report = await reader.readline()
+#         with self.lock:
+#             self.monitor_report = json.loads(report.decode('utf8'))
+#         # loop to receive live updates
+#         while True:
+#             update = await reader.readline()
+#             verdict = json.loads(update.decode('utf8'))
+#             self.set_verdict(verdict)
+# 
+#     def set_verdict(self, verdict: Dict[str, Any]):
+#         i = verdict['monitor']
+#         with self.lock:
+#             self.monitor_report[i]['verdict'] = verdict['value']
+#             self.monitor_report[i]['witness'] = verdict['witness']
 
 
 @frozen
 class LiveMonitoringClient:
-    host: str
-    port: int
-    lock: Lock = field(factory=Lock, init=False, eq=False)
-    has_started: Event = field(factory=Event, init=False, eq=False)
-    monitor_report: List[Dict[str, Any]] = field(factory=list, init=False, eq=False)
+    websocket: Any
+    updates: Queue = field(factory=Queue, init=False, eq=False, order=False)
 
-    def get_monitor_status(self) -> List[Dict[str, Any]]:
-        with self.lock:
-            return deepcopy(self.monitor_report)
+    def send_initial_server_status(self, host: str, port: int, monitors: List[Dict[str, Any]]):
+        server: str = f'{host}:{port}'
+        for i in range(len(monitors)):
+            monitor = monitors[i]
+            data = {
+                'server': server,
+                'id': i,
+                'monitor': monitor,
+            }
+            self.send_monitor_status(data)
 
-    def run(self):
-        # to be called from the dedicated thread
-        self.has_started.set()
-        try:
-            asyncio.run(self._run_client())
-        except asyncio.CancelledError:
-            pass
+    def fetch_and_send_update(self):
+        status = self.updates.get()
+        self.send_monitor_status(status)
 
-    async def _run_client(self):
-        reader, _writer = await asyncio.open_connection(self.host, self.port)
-        # read initial status report
-        report = await reader.readline()
-        with self.lock:
-            self.monitor_report = json.loads(report.decode('utf8'))
-        # loop to receive live updates
-        while True:
-            update = await reader.readline()
-            verdict = json.loads(update.decode('utf8'))
-            self.set_verdict(verdict)
-
-    def set_verdict(self, verdict: Dict[str, Any]):
-        i = verdict['monitor']
-        with self.lock:
-            self.monitor_report[i]['verdict'] = verdict['value']
-            self.monitor_report[i]['witness'] = verdict['witness']
+    def send_monitor_status(self, status: Dict[str, Any]):
+        self.websocket.send(json.dumps(status, separators=COMPACT))
 
 
 ###############################################################################
@@ -99,14 +253,15 @@ class LiveMonitoringClient:
 @frozen
 class MonitorServer:
     app: Bottle
-    monitors: List[Dict[str, Any]] = field(factory=list, init=False, eq=False)
-    # servers: Set[Any] = field(factory=set, init=False, repr=False, eq=False)
-    clients: Set[Any] = field(factory=set, init=False, repr=False, eq=False)
-    lock: RLock = field(factory=RLock, init=False, repr=False, eq=False)
+    # monitors: List[Dict[str, Any]] = field(factory=list, init=False, eq=False, order=False)
+    # updates: Queue[Dict[str, Any]] = field(factory=Queue, init=False, eq=False, order=False)
+    servers: Set[LiveMonitoringServer] = field(factory=set, init=False, eq=False, order=False)
+    clients: Set[LiveMonitoringClient] = field(factory=set, init=False, eq=False, order=False)
 
     def __attrs_post_init__(self):
         self.app.get('/')(self.index)
         self.app.get('/<filename:path>')(self.send_static_file)
+        self.app.post('/live')(self.connect_to_live_server)
         self.app.get('/ws', apply=[websocket])(self.live_updates)
 
     def index(self):
@@ -116,27 +271,50 @@ class MonitorServer:
         return static_file(filename, root=CLIENT_ROOT)
 
     def live_updates(self, ws):
-        with self.lock:
-            self.clients.add(ws)
+        client = LiveMonitoringClient(ws)
+        self.clients.add(client)
         try:
-            pass
-            # while True:
-            #     msg = ws.receive()
-            #     if msg is not None:
-            #         for u in users:
-            #             u.send(msg)
-            #     else:
-            #         break
+            # send initial status reports
+            for server in self.servers:
+                client.send_initial_server_status(server.host, server.port, server.monitors)
+            while True:
+                client.fetch_and_send_update()
         finally:
-            with self.lock:
-                self.clients.remove(ws)
+            self.clients.remove(client)
 
-    def start_live_monitoring_thread(self):
-        thread = Thread(self._live_monitoring_loop, name='live monitoring client', daemon=True)
-        thread.start()
+    # def start_live_monitoring_thread(self):
+    #     thread = Thread(self._live_monitoring_loop, name='live monitoring client', daemon=True)
+    #     thread.start()
 
-    def connect_to_live_server(self, host: str, port: int):
-        server = create_connection((host, port))
+    def connect_to_live_server(self):
+        # host: str = request.forms.get('host')
+        # port: int = int(request.forms.get('port'))
+        host: str = request.json.get('host')
+        port: int = request.json.get('port')
+        server = LiveMonitoringServer(host, port, on_update=self._on_live_server_update)
+        if server in self.servers:
+            return
+        try:
+            server.connect()
+        except (OSError, ConnectionRefusedError) as e:
+            # abort(502, 'Unable to connect to live monitoring server.')
+            response.status = 502  # Bad Gateway
+            return { 'error': repr(e) }
+        else:
+            self.servers.add(server)
+            gevent.spawn(self._handle_live_server, server)
+            return { 'servers': [s.asdict() for s in self.servers] }
+
+    def _handle_live_server(self, server: LiveMonitoringServer):
+        try:
+            server.run()
+        finally:
+            self.servers.remove(server)
+
+    def _on_live_server_update(self, update):
+        # broadcast to all clients
+        for client in self.clients:
+            client.updates.put(update)
 
 
 ###############################################################################
@@ -153,9 +331,10 @@ def subprogram(
 
 
 def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
-    app = MonitorServer(Bottle())
-    gevent.spawn(app.connect_to_live_server, args['rv_server'], args['rv_port'])
-    serve_forever(app=app, host=args['host'], port=args['port'], server=GeventWebSocketServer)
+    # TODO use gevent.kill(greenlet) or gevent.killall(greenlets, block=True, timeout=None)
+    # with KeyboardInterrupt to kill all ongoing greenlets.
+    server = MonitorServer(Bottle())
+    serve_forever(app=server.app, host=args['host'], port=args['port'], server=GeventWebSocketServer)
     return 0
 
 
@@ -180,19 +359,6 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
         type=int,
         default=8080,
         help=f'port of the HTTP server (default: 8080)',
-    )
-
-    parser.add_argument(
-        '--rv-server',
-        default='127.0.0.1',
-        help='address of the RV server (default: 127.0.0.1)'
-    )
-
-    parser.add_argument(
-        '--rv-port',
-        type=int,
-        default=4242,
-        help=f'port of the RV server (default: 5186)',
     )
 
     args = parser.parse_args(args=argv)

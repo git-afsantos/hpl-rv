@@ -16,13 +16,11 @@
     <h1>HPL RV Dashboard</h1>
     <div class="card-container">
       <div class="card">
-        <h3>Card Header</h3>
+        <h3>Monitoring Server</h3>
         <div class="card-body">
-          <h2>This Month</h2>
-          <p>Total Earnings: $159.89</p>
-          <p>Debits: $159.09</p>
-          <p>Credits: $61.231</p>
-          <p>Balance: 1000</p>
+          Host: <input id="input-host" type="text" :value="host" />
+          Port: <input id="input-port" type="number" min="1025" max="49150" :value="port" />
+          <button @click="connectToLiveMonitor">Connect</button>
         </div>
       </div>
       <div class="card">

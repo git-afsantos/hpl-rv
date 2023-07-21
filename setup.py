@@ -76,6 +76,7 @@ setup(
         'attrs>=23.1.0',
         'bottle>=0.12',
         'bottle-websocket>=0.2',
+        'gevent>=23.0',
         'hpl-specs<1.0.0',
         'Jinja2>=3.1.0',
     ],
