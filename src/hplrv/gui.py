@@ -174,45 +174,6 @@ class LiveMonitoringServer:
         }
 
 
-# @frozen
-# class LiveMonitoringClient2:
-#     host: str
-#     port: int
-#     lock: Lock = field(factory=Lock, init=False, eq=False)
-#     has_started: Event = field(factory=Event, init=False, eq=False)
-#     monitor_report: List[Dict[str, Any]] = field(factory=list, init=False, eq=False)
-# 
-#     def get_monitor_status(self) -> List[Dict[str, Any]]:
-#         with self.lock:
-#             return deepcopy(self.monitor_report)
-# 
-#     def run(self):
-#         # to be called from the dedicated thread
-#         self.has_started.set()
-#         try:
-#             asyncio.run(self._run_client())
-#         except asyncio.CancelledError:
-#             pass
-# 
-#     async def _run_client(self):
-#         reader, _writer = await asyncio.open_connection(self.host, self.port)
-#         # read initial status report
-#         report = await reader.readline()
-#         with self.lock:
-#             self.monitor_report = json.loads(report.decode('utf8'))
-#         # loop to receive live updates
-#         while True:
-#             update = await reader.readline()
-#             verdict = json.loads(update.decode('utf8'))
-#             self.set_verdict(verdict)
-# 
-#     def set_verdict(self, verdict: Dict[str, Any]):
-#         i = verdict['monitor']
-#         with self.lock:
-#             self.monitor_report[i]['verdict'] = verdict['value']
-#             self.monitor_report[i]['witness'] = verdict['witness']
-
-
 @frozen
 class LiveMonitoringClient:
     websocket: Any
@@ -253,8 +214,6 @@ class LiveMonitoringClient:
 @frozen
 class MonitorServer:
     app: Bottle
-    # monitors: List[Dict[str, Any]] = field(factory=list, init=False, eq=False, order=False)
-    # updates: Queue[Dict[str, Any]] = field(factory=Queue, init=False, eq=False, order=False)
     servers: Set[LiveMonitoringServer] = field(factory=set, init=False, eq=False, order=False)
     clients: Set[LiveMonitoringClient] = field(factory=set, init=False, eq=False, order=False)
 
@@ -281,10 +240,6 @@ class MonitorServer:
                 client.fetch_and_send_update()
         finally:
             self.clients.remove(client)
-
-    # def start_live_monitoring_thread(self):
-    #     thread = Thread(self._live_monitoring_loop, name='live monitoring client', daemon=True)
-    #     thread.start()
 
     def connect_to_live_server(self):
         # host: str = request.forms.get('host')
