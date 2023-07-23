@@ -190,7 +190,7 @@ class LiveMonitoringClient:
             }
             self.send_monitor_status(data)
 
-    def fetch_and_send_update(self):
+    def get_and_send_update(self):
         status = self.updates.get()
         self.send_monitor_status(status)
 
@@ -209,6 +209,12 @@ class LiveMonitoringClient:
 # The websocket request is a new connection (of type websocket), so we have
 # (h + w) connections going on at any given time (h = HTTP, w = WebSocket),
 # meaning that we also have (h + w) greenlets.
+
+# Greenlets:
+# - main server loop?
+# - one per HTTP request (automatic cleanup)
+# - one per websocket (loop)
+# - one per live monitoring server socket (loop)
 
 
 @frozen
@@ -237,7 +243,7 @@ class MonitorServer:
             for server in self.servers:
                 client.send_initial_server_status(server.host, server.port, server.monitors)
             while True:
-                client.fetch_and_send_update()
+                client.get_and_send_update()
         finally:
             self.clients.remove(client)
 
