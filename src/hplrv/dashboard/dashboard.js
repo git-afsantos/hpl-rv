@@ -74,6 +74,8 @@ async function postData(url = "", data = {}) {
 const ConnectionDialog = {
   template: "#vue-connection-dialog",
 
+  emits: ["modal-opened", "modal-closed", "connect-to-server"],
+
   data() {
     return {
       host: "127.0.0.1",
@@ -89,20 +91,52 @@ const ConnectionDialog = {
 
   methods: {
     show() {
-      this.$refs.dialog.showModal();
-      this.$emit("modal-opened");
+      if (!this.isOpen) {
+        this.$refs.dialog.showModal();
+        this.$emit("modal-opened");
+      }
     },
-    
+  
     cancelDialog() {
       this.$refs.dialog.close();
       this.$emit("modal-closed");
     },
-    
+  
     connectToLiveMonitor() {
       this.$emit("modal-closed");
       this.$emit("connect-to-server", this.host, this.port);
     }
   },
+};
+
+
+const LiveServerList = {
+  template: "#vue-live-server-list",
+
+  emits: ["show-dialog"],
+
+  data() {
+    return {
+      servers: [],
+    };
+  },
+
+  methods: {
+    showConnectionDialog() {
+      this.$emit("show-dialog");
+    },
+  },
+};
+
+
+const RuntimeMonitorList = {
+  template: "#vue-runtime-monitor-list",
+
+  data() {
+    return {
+      monitors: [],
+    };
+  }
 };
 
 
@@ -191,7 +225,7 @@ const app = createApp({
 
     onModalClosed() {
       this.openModals = Math.max(0, this.openModals - 1);
-    }
+    },
   },
 
   mounted() {}
@@ -203,6 +237,8 @@ const app = createApp({
 // -----------------------------------------------------------------------------
   
 app.component("ConnectionDialog", ConnectionDialog);
+app.component("LiveServerList", LiveServerList);
+app.component("RuntimeMonitorList", RuntimeMonitorList);
 app.component("RuntimeMonitor", RuntimeMonitor);
 
 app.mount("#app");

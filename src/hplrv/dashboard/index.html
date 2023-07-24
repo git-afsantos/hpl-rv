@@ -16,31 +16,8 @@
     <main ref="root" :class="{blurred: isModalOpen}">
       <h1>HPL RV Dashboard</h1>
       <div class="card-container">
-        <div class="card">
-          <h2>Monitoring Servers</h2>
-          <div class="card-body">
-            <button @click="showConnectionDialog">Connect</button>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Runtime Monitors</h2>
-          <div class="card-body">
-            <ul>
-              <runtime-monitor
-                name="Monitor 1"
-                property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
-              </runtime-monitor>
-              <runtime-monitor
-                name="Monitor 2"
-                property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
-              </runtime-monitor>
-              <runtime-monitor
-                name="Monitor 3"
-                property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
-              </runtime-monitor>
-            </ul>
-          </div>
-        </div>
+        <live-server-list @show-dialog="showConnectionDialog"></live-server-list>
+        <runtime-monitor-list></runtime-monitor-list>
       </div>
       <connection-dialog
         ref="connectionDialog"
@@ -49,6 +26,37 @@
         @connect-to-server="connectToLiveMonitor">
       </connection-dialog>
     </main>
+  </template>
+
+  <template id="vue-live-server-list">
+    <div class="card">
+      <h2>Monitoring Servers</h2>
+      <div class="card-body">
+        <button @click="showConnectionDialog">Connect</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="vue-runtime-monitor-list">
+    <div class="card">
+      <h2>Runtime Monitors</h2>
+      <div class="card-body">
+        <ul>
+          <runtime-monitor
+            name="Monitor 1"
+            property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
+          </runtime-monitor>
+          <runtime-monitor
+            name="Monitor 2"
+            property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
+          </runtime-monitor>
+          <runtime-monitor
+            name="Monitor 3"
+            property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
+          </runtime-monitor>
+        </ul>
+      </div>
+    </div>
   </template>
 
   <template id="vue-runtime-monitor">
