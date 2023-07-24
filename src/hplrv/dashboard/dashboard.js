@@ -71,6 +71,41 @@ async function postData(url = "", data = {}) {
 //  Components
 // -----------------------------------------------------------------------------
 
+const ConnectionDialog = {
+  template: "#vue-connection-dialog",
+
+  data() {
+    return {
+      host: "127.0.0.1",
+      port: 4242,
+    };
+  },
+
+  computed: {
+    isOpen() {
+      return this.$refs.dialog.open;
+    }
+  },
+
+  methods: {
+    show() {
+      this.$refs.dialog.showModal();
+      this.$emit("modal-opened");
+    },
+    
+    cancelDialog() {
+      this.$refs.dialog.close();
+      this.$emit("modal-closed");
+    },
+    
+    connectToLiveMonitor() {
+      this.$emit("modal-closed");
+      this.$emit("connect-to-server", this.host, this.port);
+    }
+  },
+};
+
+
 const RuntimeMonitor = {
   template: "#vue-runtime-monitor",
 
@@ -127,29 +162,39 @@ const app = createApp({
 
   data() {
     return {
-      host: "127.0.0.1",
-      port: 4242,
+      openModals: 0,
     };
   },
 
-  computed: {},
+  computed: {
+    isModalOpen() {
+      return this.openModals > 0;
+    }
+  },
 
   methods: {
     onSetupDone() {},
 
-    connectToLiveMonitor() {
-      postData("/live", {
-        host: this.host,
-        port: this.port,
-      })
+    showConnectionDialog() {
+      this.$refs.connectionDialog.show();
+    },
+
+    connectToLiveMonitor(host, port) {
+      postData("/live", { host, port })
       .then(() => alert("Connected to server!"))
       .catch((reason) => alert(`Error: ${reason}`));
+    },
+
+    onModalOpened() {
+      this.openModals += 1;
+    },
+
+    onModalClosed() {
+      this.openModals = Math.max(0, this.openModals - 1);
     }
   },
 
-  mounted() {
-    
-  }
+  mounted() {}
 });
   
   
@@ -157,6 +202,7 @@ const app = createApp({
 //  Setup
 // -----------------------------------------------------------------------------
   
+app.component("ConnectionDialog", ConnectionDialog);
 app.component("RuntimeMonitor", RuntimeMonitor);
 
 app.mount("#app");

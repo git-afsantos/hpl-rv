@@ -13,36 +13,42 @@
   <div id="app"></div>
 
   <template id="vue-dashboard">
-    <h1>HPL RV Dashboard</h1>
-    <div class="card-container">
-      <div class="card">
-        <h3>Monitoring Server</h3>
-        <div class="card-body">
-          Host: <input id="input-host" type="text" :value="host" />
-          Port: <input id="input-port" type="number" min="1025" max="49150" :value="port" />
-          <button @click="connectToLiveMonitor">Connect</button>
+    <main ref="root" :class="{blurred: isModalOpen}">
+      <h1>HPL RV Dashboard</h1>
+      <div class="card-container">
+        <div class="card">
+          <h2>Monitoring Servers</h2>
+          <div class="card-body">
+            <button @click="showConnectionDialog">Connect</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Runtime Monitors</h2>
+          <div class="card-body">
+            <ul>
+              <runtime-monitor
+                name="Monitor 1"
+                property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
+              </runtime-monitor>
+              <runtime-monitor
+                name="Monitor 2"
+                property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
+              </runtime-monitor>
+              <runtime-monitor
+                name="Monitor 3"
+                property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
+              </runtime-monitor>
+            </ul>
+          </div>
         </div>
       </div>
-      <div class="card">
-        <h3>Runtime Monitors</h3>
-        <div class="card-body">
-          <ul>
-            <runtime-monitor
-              name="Monitor 1"
-              property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
-            </runtime-monitor>
-            <runtime-monitor
-              name="Monitor 2"
-              property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
-            </runtime-monitor>
-            <runtime-monitor
-              name="Monitor 3"
-              property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
-            </runtime-monitor>
-          </ul>
-        </div>
-      </div>
-    </div>
+      <connection-dialog
+        ref="connectionDialog"
+        @modal-opened="onModalOpened"
+        @modal-closed="onModalClosed"
+        @connect-to-server="connectToLiveMonitor">
+      </connection-dialog>
+    </main>
   </template>
 
   <template id="vue-runtime-monitor">
@@ -58,6 +64,23 @@
         <button class="text-button">delete</button>
       </div>
     </li>
+  </template>
+
+  <template id="vue-connection-dialog">
+    <dialog ref="dialog">
+      <div class="form-grid">
+        <label for="input-host">Host:</label>
+        <div>
+          <input id="input-host" type="text" :value="host" :placeholder="host" />
+        </div>
+        <label for="input-port">Port:</label>
+        <input id="input-port" type="number" min="1025" max="49150" :value="port" :placeholder="port" />
+      </div>
+      <div class="button-bar">
+        <button @click="cancelDialog">Cancel</button>
+        <button @click="connectToLiveMonitor">Connect</button>
+      </div>
+    </dialog>
   </template>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
