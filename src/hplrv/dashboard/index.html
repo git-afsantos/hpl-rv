@@ -38,7 +38,7 @@
     <div class="card server-list">
       <h2>Monitoring Servers</h2>
       <div class="card-body">
-        <ul>
+        <ul v-if="servers.length > 0">
           <live-server v-for="(server, i) in servers"
             :key="`${server.host}:${server.port}`"
             :host="server.host"
@@ -48,6 +48,9 @@
             @user-select="onUserSelect">
           </live-server>
         </ul>
+        <p v-else>
+          There are no connected servers.
+        </p>
         <button @click="showConnectionDialog">Connect</button>
       </div>
     </div>
@@ -70,12 +73,15 @@
     <div class="card monitor-list">
       <h2>Runtime Monitors</h2>
       <div class="card-body">
-        <ul>
+        <ul v-if="monitors.length > 0">
           <runtime-monitor v-for="monitor in monitors"
             :name="monitor.title"
             :property="monitor.property">
           </runtime-monitor>
         </ul>
+        <p v-else>
+          There are no runtime monitors.
+        </p>
       </div>
     </div>
   </template>
