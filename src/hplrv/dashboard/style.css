@@ -29,7 +29,7 @@ body {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  gap: 2em;
+  gap: 1em;
 }
 
 .card {
@@ -38,11 +38,17 @@ body {
   background-color: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 2em;
-  overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
   outline: 1px solid lightgray;
+}
+
+.card.server-list {
+  flex: 0 1 auto;
+  min-width: 25vw;
 }
 
 .card > h2 {
@@ -51,14 +57,23 @@ body {
   margin: 0 0 1em 0;
 }
 
+.card-body {
+  flex: 1 0 auto;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .card-body ul {
+  flex: 1 0 auto;
   list-style-type: none;
   margin: 0;
   padding: 0;
 }
 
+.live-server,
 .tracked-monitor {
-  padding: 1em 0;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -67,16 +82,30 @@ body {
   padding: 1em;
 }
 
+.live-server.selected {
+  background-color: aliceblue;
+}
+
+.live-server:hover,
 .tracked-monitor:hover {
   background-color: whitesmoke;
 }
 
+.live-server:not(:first-child),
 .tracked-monitor:not(:first-child) {
   border-top: 1px solid lightgray;
 }
 
+.live-server > .description,
 .tracked-monitor > .description {
   flex: 1 1 auto;
+}
+
+.live-server > .description > .address {
+  display: block;
+  font-size: 1.25em;
+  font-weight: bold;
+  margin: 0 0 .5em 0;
 }
 
 .tracked-monitor > .description > .name {
@@ -85,10 +114,12 @@ body {
   margin: 0 0 .5em 0;
 }
 
+.live-server > .description > small,
 .tracked-monitor > .description > code {
   color: darkgray;
 }
 
+.live-server:hover > .description > small,
 .tracked-monitor:hover > .description > code {
   color: gray;
 }
@@ -109,6 +140,7 @@ code > .bool {
   color: cornflowerblue;
 }
 
+.live-server > .status-icon,
 .tracked-monitor > .status-icon {
   flex: 0 0 auto;
   width: 2em;
@@ -118,6 +150,7 @@ code > .bool {
   display: inline-block;
 }
 
+.live-server > .toolbar,
 .tracked-monitor > .toolbar {
   flex: 0 0 auto;
   opacity: 0;
@@ -125,6 +158,7 @@ code > .bool {
   flex-direction: row;
 }
 
+.live-server:hover > .toolbar,
 .tracked-monitor:hover > .toolbar {
   opacity: 1;
 }

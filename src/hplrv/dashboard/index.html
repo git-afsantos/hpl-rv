@@ -29,16 +29,34 @@
   </template>
 
   <template id="vue-live-server-list">
-    <div class="card">
+    <div class="card server-list">
       <h2>Monitoring Servers</h2>
       <div class="card-body">
+        <ul>
+          <live-server host="127.0.0.1" port="4242" :is-selected="true"></live-server>
+          <live-server host="127.0.0.1" port="5176" :is-selected="false"></live-server>
+          <live-server host="127.0.0.1" port="8080" :is-selected="false"></live-server>
+        </ul>
         <button @click="showConnectionDialog">Connect</button>
       </div>
     </div>
   </template>
 
+  <template id="vue-live-server">
+    <li class="live-server" :class="{selected: isSelected}">
+      <div class="status-icon"></div>
+      <div class="description">
+        <code class="address">{{ host }}:{{ port }}</code>
+        <small>{{ numMonitors }} monitors</small>
+      </div>
+      <div class="toolbar">
+        <button class="text-button">close</button>
+      </div>
+    </li>
+  </template>
+
   <template id="vue-runtime-monitor-list">
-    <div class="card">
+    <div class="card monitor-list">
       <h2>Runtime Monitors</h2>
       <div class="card-body">
         <ul>
@@ -66,11 +84,11 @@
         <p class="name">{{ name }}</p>
         <code v-html="propertyHTML"></code>
       </div>
-      <div class="toolbar">
+      <!--<div class="toolbar">
         <button class="text-button">edit</button>
         &nbsp;
         <button class="text-button">delete</button>
-      </div>
+      </div>-->
     </li>
   </template>
 

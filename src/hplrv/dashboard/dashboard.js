@@ -129,6 +129,25 @@ const LiveServerList = {
 };
 
 
+const LiveServer = {
+  template: "#vue-live-server",
+
+  props: {
+    host: String,
+    port: Number,
+    monitors: {
+      type: Array,
+      default(_rawProps) { return [] }
+    },
+    isSelected: Boolean,
+  },
+
+  computed: {
+    numMonitors() { return this.monitors.length }
+  }
+};
+
+
 const RuntimeMonitorList = {
   template: "#vue-runtime-monitor-list",
 
@@ -230,14 +249,15 @@ const app = createApp({
 
   mounted() {}
 });
-  
-  
+
+
 // -----------------------------------------------------------------------------
 //  Setup
 // -----------------------------------------------------------------------------
-  
+
 app.component("ConnectionDialog", ConnectionDialog);
 app.component("LiveServerList", LiveServerList);
+app.component("LiveServer", LiveServer);
 app.component("RuntimeMonitorList", RuntimeMonitorList);
 app.component("RuntimeMonitor", RuntimeMonitor);
 
