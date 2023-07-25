@@ -46,6 +46,7 @@
             :port="server.port"
             :monitors="server.monitors"
             :is-selected="selection === i"
+            :is-online="true"
             @user-select="onUserSelect"
             @close="onCloseConnection">
           </live-server>
@@ -60,7 +61,7 @@
 
   <template id="vue-live-server">
     <li class="live-server" :class="{selected: isSelected}" @click.prevent.stop="onSelect">
-      <div class="status-icon"></div>
+      <div class="status-icon" :class="statusClass">{{ statusIcon }}</div>
       <div class="description">
         <code class="address">{{ host }}:{{ port }}</code>
         <small>{{ numMonitors }}</small>
@@ -76,10 +77,7 @@
       <h2>Runtime Monitors</h2>
       <div class="card-body">
         <ul v-if="monitors.length > 0">
-          <runtime-monitor v-for="monitor in monitors"
-            :name="monitor.title"
-            :property="monitor.property">
-          </runtime-monitor>
+          <runtime-monitor v-for="monitor in monitors" v-bind="monitor"></runtime-monitor>
         </ul>
         <p v-else>
           There are no runtime monitors.
@@ -90,16 +88,16 @@
 
   <template id="vue-runtime-monitor">
     <li class="tracked-monitor">
-      <div class="status-icon"></div>
+      <div class="status-icon" :class="statusClass">{{ statusIcon }}</div>
       <div class="description">
-        <p class="name">{{ name }}</p>
+        <p class="name">{{ title }}</p>
         <code v-html="propertyHTML"></code>
       </div>
-      <!--<div class="toolbar">
-        <button class="text-button">edit</button>
-        &nbsp;
-        <button class="text-button">delete</button>
-      </div>-->
+      <div class="toolbar">
+        <button class="text-button" @click="showWitness" :disabled="witness == null">
+          witness
+        </button>
+      </div>
     </li>
   </template>
 

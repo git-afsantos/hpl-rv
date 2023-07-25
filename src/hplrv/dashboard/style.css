@@ -145,9 +145,26 @@ code > .bool {
   flex: 0 0 auto;
   width: 2em;
   height: 2em;
+  line-height: 2em;
   border-radius: 50%;
-  background-color: darkkhaki;
   display: inline-block;
+  text-align: center;
+  font-weight: bold;
+  user-select: none;
+  background-color: white;
+  outline: 1px solid gray;
+}
+
+.live-server > .status-icon.online,
+.status-icon.success {
+  outline: 2px solid forestgreen;
+  color: forestgreen;
+}
+
+.live-server > .status-icon.offline,
+.status-icon.failure {
+  outline: 2px solid firebrick;
+  color: firebrick;
 }
 
 .live-server > .toolbar,
@@ -173,8 +190,8 @@ code > .bool {
   color: lightgray;
 }
 
-.text-button:hover,
-.text-button:active {
+.text-button:hover:not(:disabled),
+.text-button:active:not(:disabled) {
   color: gray;
 }
 

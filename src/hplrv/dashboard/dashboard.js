@@ -158,12 +158,21 @@ const LiveServer = {
       default(_rawProps) { return [] }
     },
     isSelected: Boolean,
+    isOnline: Boolean,
   },
 
   computed: {
     numMonitors() {
       const n = this.monitors.length;
       return n === 1 ? "1 monitor" : `${n} monitors`;
+    },
+
+    statusClass() {
+      return this.isOnline ? "online" : "offline";
+    },
+
+    statusIcon() {
+      return this.isOnline ? "O" : "X";
     }
   },
 
@@ -202,8 +211,10 @@ const RuntimeMonitor = {
   template: "#vue-runtime-monitor",
 
   props: {
-    name: String,
+    title: String,
     property: String,
+    verdict: Boolean,
+    witness: Array,
   },
 
   computed: {
@@ -240,6 +251,25 @@ const RuntimeMonitor = {
       // colorize numbers
       p = p.replace(NUMBER_REGEX, '$1<span class="number">$2</span>$3');
       return p;
+    },
+
+    statusClass() {
+      if (this.verdict === true) { return "success" }
+      if (this.verdict === false) { return "failure" }
+      return "";
+    },
+
+    statusIcon() {
+      if (this.verdict === true) { return "T" }
+      if (this.verdict === false) { return "F" }
+      return "?";
+    }
+  },
+
+  methods: {
+    showWitness() {
+      if (this.witness == null) { return }
+      alert("TODO: verdict witness");
     }
   }
 };
@@ -263,14 +293,14 @@ const app = createApp({
             id: "p1",
             title: "Property 1",
             property: "globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms",
-            verdict: null,
-            witness: null,
+            verdict: true,
+            witness: [],
           }, {
             id: "p2",
             title: "Property 2",
             property: 'after /chat {msg = "hello"}: some /chat {msg = "world"} within .1s',
-            verdict: null,
-            witness: null,
+            verdict: false,
+            witness: [],
           }],
         },
         {
@@ -281,7 +311,6 @@ const app = createApp({
             title: "Property 3",
             property: 'until /chat {msg = "false"}: some /true {value = true}',
             verdict: null,
-            witness: null,
           }],
         },
         {
