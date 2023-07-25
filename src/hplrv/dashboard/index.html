@@ -16,8 +16,14 @@
     <main ref="root" :class="{blurred: isModalOpen}">
       <h1>HPL RV Dashboard</h1>
       <div class="card-container">
-        <live-server-list @show-dialog="showConnectionDialog"></live-server-list>
-        <runtime-monitor-list></runtime-monitor-list>
+        <live-server-list
+          :servers="servers"
+          :selection="selectedServer"
+          @show-dialog="showConnectionDialog"
+          @select-server="onServerSelected">
+        </live-server-list>
+        <runtime-monitor-list :monitors="displayedMonitors">
+        </runtime-monitor-list>
       </div>
       <connection-dialog
         ref="connectionDialog"
@@ -33,9 +39,13 @@
       <h2>Monitoring Servers</h2>
       <div class="card-body">
         <ul>
-          <live-server host="127.0.0.1" port="4242" :is-selected="true"></live-server>
-          <live-server host="127.0.0.1" port="5176" :is-selected="false"></live-server>
-          <live-server host="127.0.0.1" port="8080" :is-selected="false"></live-server>
+          <live-server v-for="(server, i) in servers"
+            :key="`${server.host}:${server.port}`"
+            :host="server.host"
+            :port="server.port"
+            :is-selected="selection === i"
+            @user-select="onUserSelect">
+          </live-server>
         </ul>
         <button @click="showConnectionDialog">Connect</button>
       </div>
@@ -43,7 +53,7 @@
   </template>
 
   <template id="vue-live-server">
-    <li class="live-server" :class="{selected: isSelected}">
+    <li class="live-server" :class="{selected: isSelected}" @click.prevent.stop="onSelect">
       <div class="status-icon"></div>
       <div class="description">
         <code class="address">{{ host }}:{{ port }}</code>
@@ -60,17 +70,9 @@
       <h2>Runtime Monitors</h2>
       <div class="card-body">
         <ul>
-          <runtime-monitor
-            name="Monitor 1"
-            property="globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms">
-          </runtime-monitor>
-          <runtime-monitor
-            name="Monitor 2"
-            property="after /chat {msg = &quot;hello&quot;}: some /chat {msg = &quot;world&quot;} within .1s">
-          </runtime-monitor>
-          <runtime-monitor
-            name="Monitor 3"
-            property="until /chat {msg = &quot;false&quot;}: some /true {value = true}">
+          <runtime-monitor v-for="monitor in monitors"
+            :name="monitor.title"
+            :property="monitor.property">
           </runtime-monitor>
         </ul>
       </div>

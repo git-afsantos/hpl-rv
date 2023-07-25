@@ -113,15 +113,21 @@ const ConnectionDialog = {
 const LiveServerList = {
   template: "#vue-live-server-list",
 
-  emits: ["show-dialog"],
+  emits: ["show-dialog", "select-server"],
 
-  data() {
-    return {
-      servers: [],
-    };
+  props: {
+    servers: {
+      type: Array,
+      default(_rawProps) { return [] },
+    },
+    selection: Number,
   },
 
   methods: {
+    onUserSelect(host, port) {
+      this.$emit("select-server", host, port);
+    },
+
     showConnectionDialog() {
       this.$emit("show-dialog");
     },
@@ -131,6 +137,8 @@ const LiveServerList = {
 
 const LiveServer = {
   template: "#vue-live-server",
+
+  emits: ["user-select"],
 
   props: {
     host: String,
@@ -144,6 +152,14 @@ const LiveServer = {
 
   computed: {
     numMonitors() { return this.monitors.length }
+  },
+
+  methods: {
+    onSelect() {
+      if (!this.isSelected) {
+        this.$emit("user-select", this.host, this.port);
+      }
+    }
   }
 };
 
@@ -151,10 +167,11 @@ const LiveServer = {
 const RuntimeMonitorList = {
   template: "#vue-runtime-monitor-list",
 
-  data() {
-    return {
-      monitors: [],
-    };
+  props: {
+    monitors: {
+      type: Array,
+      default(_rawProps) { return [] },
+    }
   }
 };
 
@@ -216,6 +233,38 @@ const app = createApp({
   data() {
     return {
       openModals: 0,
+      servers: [
+        {
+          host: "127.0.0.1",
+          port: 4242,
+          monitors: [{
+            id: "p1",
+            title: "Property 1",
+            property: "globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms",
+            verdict: null,
+            witness: null,
+          }, {
+            id: "p2",
+            title: "Property 2",
+            property: 'after /chat {msg = "hello"}: some /chat {msg = "world"} within .1s',
+            verdict: null,
+            witness: null,
+          }],
+        },
+        {
+          host: "127.0.0.1",
+          port: 5176,
+          monitors: [{
+            id: "p3",
+            title: "Property 3",
+            property: 'until /chat {msg = "false"}: some /true {value = true}',
+            verdict: null,
+            witness: null,
+          }],
+        },
+      ],
+      selectedServer: null,
+      displayedMonitors: [],
     };
   },
 
@@ -227,6 +276,17 @@ const app = createApp({
 
   methods: {
     onSetupDone() {},
+
+    onServerSelected(host, port) {
+      for (const i of this.servers.keys()) {
+        const server = this.servers[i];
+        if (server.host !== host) { continue }
+        if (server.port !== port) { continue }
+        this.selectedServer = i;
+        this.displayedMonitors = server.monitors;
+        return;
+      }
+    },
 
     showConnectionDialog() {
       this.$refs.connectionDialog.show();
@@ -247,7 +307,12 @@ const app = createApp({
     },
   },
 
-  mounted() {}
+  mounted() {
+    if (this.servers.length > 0) {
+      this.selectedServer = 0;
+      this.displayedMonitors = this.servers[this.selectedServer].monitors;
+    }
+  }
 });
 
 
