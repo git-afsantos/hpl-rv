@@ -20,7 +20,8 @@
           :servers="servers"
           :selection="selectedServer"
           @show-dialog="showConnectionDialog"
-          @select-server="onServerSelected">
+          @select-server="onServerSelected"
+          @close-server="onServerClosed">
         </live-server-list>
         <runtime-monitor-list :monitors="displayedMonitors">
         </runtime-monitor-list>
@@ -45,7 +46,8 @@
             :port="server.port"
             :monitors="server.monitors"
             :is-selected="selection === i"
-            @user-select="onUserSelect">
+            @user-select="onUserSelect"
+            @close="onCloseConnection">
           </live-server>
         </ul>
         <p v-else>
@@ -64,7 +66,7 @@
         <small>{{ numMonitors }}</small>
       </div>
       <div class="toolbar">
-        <button class="text-button">close</button>
+        <button class="text-button" @click.prevent.stop="onCloseConnection">close</button>
       </div>
     </li>
   </template>

@@ -68,8 +68,9 @@ async function postData(url = "", data = {}) {
 
 
 // -----------------------------------------------------------------------------
-//  Components
+//  Generic Components
 // -----------------------------------------------------------------------------
+
 
 const ConnectionDialog = {
   template: "#vue-connection-dialog",
@@ -110,10 +111,15 @@ const ConnectionDialog = {
 };
 
 
+// -----------------------------------------------------------------------------
+//  Live Server Components
+// -----------------------------------------------------------------------------
+
+
 const LiveServerList = {
   template: "#vue-live-server-list",
 
-  emits: ["show-dialog", "select-server"],
+  emits: ["show-dialog", "select-server", "close-server"],
 
   props: {
     servers: {
@@ -128,6 +134,10 @@ const LiveServerList = {
       this.$emit("select-server", host, port);
     },
 
+    onCloseConnection(host, port) {
+      this.$emit("close-server", host, port);
+    },
+
     showConnectionDialog() {
       this.$emit("show-dialog");
     },
@@ -138,7 +148,7 @@ const LiveServerList = {
 const LiveServer = {
   template: "#vue-live-server",
 
-  emits: ["user-select"],
+  emits: ["user-select", "close"],
 
   props: {
     host: String,
@@ -162,9 +172,18 @@ const LiveServer = {
       if (!this.isSelected) {
         this.$emit("user-select", this.host, this.port);
       }
-    }
+    },
+
+    onCloseConnection() {
+      this.$emit("close", this.host, this.port);
+    },
   }
 };
+
+
+// -----------------------------------------------------------------------------
+//  Runtime Monitor Components
+// -----------------------------------------------------------------------------
 
 
 const RuntimeMonitorList = {
@@ -227,7 +246,7 @@ const RuntimeMonitor = {
 
 
 // -----------------------------------------------------------------------------
-//  Application
+//  Main Application
 // -----------------------------------------------------------------------------
 
 const app = createApp({
@@ -272,13 +291,19 @@ const app = createApp({
         },
       ],
       selectedServer: null,
-      displayedMonitors: [],
     };
   },
 
   computed: {
     isModalOpen() {
       return this.openModals > 0;
+    },
+
+    displayedMonitors() {
+      if (this.selectedServer == null) { return [] }
+      const server = this.servers[this.selectedServer];
+      if (server == null) { return [] }
+      return server.monitors;
     }
   },
 
@@ -291,7 +316,30 @@ const app = createApp({
         if (server.host !== host) { continue }
         if (server.port !== port) { continue }
         this.selectedServer = i;
-        this.displayedMonitors = server.monitors;
+        // this.displayedMonitors = server.monitors;
+        return;
+      }
+    },
+
+    onServerClosed(host, port) {
+      for (const i of this.servers.keys()) {
+        const server = this.servers[i];
+        if (server.host !== host) { continue }
+        if (server.port !== port) { continue }
+        this.servers.splice(i, 1);
+        if (this.selectedServer === i) {
+          if (this.servers.length === 0) {
+            this.selectedServer = null;
+            // this.displayedMonitors = [];
+          } else if (i >= this.servers.length) {
+            // must have closed the last on the list
+            this.selectedServer = this.servers.length - 1;
+            // this.displayedMonitors = server.monitors;
+          }
+        } else if (this.selectedServer > i) {
+          // removed one above the selected; shift by one
+          this.selectedServer--;
+        }
         return;
       }
     },
@@ -306,6 +354,10 @@ const app = createApp({
       .catch((reason) => alert(`Error: ${reason}`));
     },
 
+    disconnectFromLiveMonitor(server) {
+      console.log("disconnected");
+    },
+
     onModalOpened() {
       this.openModals += 1;
     },
@@ -318,7 +370,7 @@ const app = createApp({
   mounted() {
     if (this.servers.length > 0) {
       this.selectedServer = 0;
-      this.displayedMonitors = this.servers[this.selectedServer].monitors;
+      // this.displayedMonitors = this.servers[this.selectedServer].monitors;
     }
   }
 });
