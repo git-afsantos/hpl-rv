@@ -43,6 +43,7 @@
             :key="`${server.host}:${server.port}`"
             :host="server.host"
             :port="server.port"
+            :monitors="server.monitors"
             :is-selected="selection === i"
             @user-select="onUserSelect">
           </live-server>
@@ -57,7 +58,7 @@
       <div class="status-icon"></div>
       <div class="description">
         <code class="address">{{ host }}:{{ port }}</code>
-        <small>{{ numMonitors }} monitors</small>
+        <small>{{ numMonitors }}</small>
       </div>
       <div class="toolbar">
         <button class="text-button">close</button>

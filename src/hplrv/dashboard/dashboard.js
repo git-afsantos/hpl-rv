@@ -151,7 +151,10 @@ const LiveServer = {
   },
 
   computed: {
-    numMonitors() { return this.monitors.length }
+    numMonitors() {
+      const n = this.monitors.length;
+      return n === 1 ? "1 monitor" : `${n} monitors`;
+    }
   },
 
   methods: {
