@@ -67,6 +67,20 @@ async function postData(url = "", data = {}) {
 }
 
 
+function padWithMonitors(servers, n) {
+  while (servers.length < n) {
+    const i = servers.length + 1;
+    servers.push({
+      id: `p${i}`,
+      title: `Property ${i}`,
+      property: "",
+      verdict: null,
+      witness: [],
+    });
+  }
+}
+
+
 // -----------------------------------------------------------------------------
 //  Generic Components
 // -----------------------------------------------------------------------------
@@ -285,41 +299,9 @@ const app = createApp({
   data() {
     return {
       openModals: 0,
-      servers: [
-        {
-          host: "127.0.0.1",
-          port: 4242,
-          monitors: [{
-            id: "p1",
-            title: "Property 1",
-            property: "globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms",
-            verdict: true,
-            witness: [],
-          }, {
-            id: "p2",
-            title: "Property 2",
-            property: 'after /chat {msg = "hello"}: some /chat {msg = "world"} within .1s',
-            verdict: false,
-            witness: [],
-          }],
-        },
-        {
-          host: "127.0.0.1",
-          port: 5176,
-          monitors: [{
-            id: "p3",
-            title: "Property 3",
-            property: 'until /chat {msg = "false"}: some /true {value = true}',
-            verdict: null,
-          }],
-        },
-        {
-          host: "127.0.0.1",
-          port: 8080,
-          monitors: [],
-        },
-      ],
+      servers: [],
       selectedServer: null,
+      websocket: null,
     };
   },
 
@@ -378,13 +360,35 @@ const app = createApp({
     },
 
     connectToLiveMonitor(host, port) {
+      const self = this;
       postData("/live", { host, port })
-      .then(() => alert("Connected to server!"))
+      .then(data => {
+        self.servers = [];
+        for (const server of data.servers) {
+          self.servers.push({ ...server, monitors: [] });
+        }
+        if (self.websocket == null) {
+          self.websocket = new WebSocket("/ws");
+          self.websocket.onmessage = event => self.onMonitorUpdate(JSON.parse(event.data));
+        }
+      })
       .catch((reason) => alert(`Error: ${reason}`));
     },
 
     disconnectFromLiveMonitor(server) {
       console.log("disconnected");
+    },
+
+    onMonitorUpdate(msg) {
+      for (const server of this.servers) {
+        const addr = `${server.host}:${server.port}`;
+        if (addr !== msg.server) { continue }
+
+        const i = msg.id;
+        padWithMonitors(this.servers, i+1);
+        this.servers[i] = msg.monitor;
+        return;
+      }
     },
 
     onModalOpened() {
@@ -416,3 +420,46 @@ app.component("RuntimeMonitorList", RuntimeMonitorList);
 app.component("RuntimeMonitor", RuntimeMonitor);
 
 app.mount("#app");
+
+
+// -----------------------------------------------------------------------------
+//  Testing
+// -----------------------------------------------------------------------------
+
+
+function exampleServers() {
+  return [
+    {
+      host: "127.0.0.1",
+      port: 4242,
+      monitors: [{
+        id: "p1",
+        title: "Property 1",
+        property: "globally: /a {true} causes /b {(not x and y and z) implies w} within 100 ms",
+        verdict: true,
+        witness: [],
+      }, {
+        id: "p2",
+        title: "Property 2",
+        property: 'after /chat {msg = "hello"}: some /chat {msg = "world"} within .1s',
+        verdict: false,
+        witness: [],
+      }],
+    },
+    {
+      host: "127.0.0.1",
+      port: 5176,
+      monitors: [{
+        id: "p3",
+        title: "Property 3",
+        property: 'until /chat {msg = "false"}: some /true {value = true}',
+        verdict: null,
+      }],
+    },
+    {
+      host: "127.0.0.1",
+      port: 8080,
+      monitors: [],
+    },
+  ];
+}
