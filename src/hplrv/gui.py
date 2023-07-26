@@ -324,4 +324,3 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
 
     args = parser.parse_args(args=argv)
     return vars(args)
-
