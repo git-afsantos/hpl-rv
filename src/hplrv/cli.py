@@ -22,6 +22,7 @@ from typing import Any, Dict, Final, List, Optional
 
 import argparse
 import sys
+from traceback import print_exc
 
 from hplrv import __version__ as current_version, gen, gui, play
 
@@ -119,13 +120,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     except Exception as err:
-        # In real code the `except` would probably be less broad.
-        # Turn exceptions into appropriate logs and/or console output.
-
-        print('An unhandled exception crashed the application!', err)
-
-        # Non-zero return code to signal error.
-        # It can, of course, be more fine-grained than this general code.
+        print('An unhandled exception crashed the application!')
+        print(err)
+        print_exc()
         return 1
 
     return 0  # success
