@@ -5,9 +5,10 @@
 # Imports
 ###############################################################################
 
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
 from bisect import bisect, bisect_left
+from types import SimpleNamespace
 
 from attrs import field, frozen
 
@@ -21,11 +22,20 @@ class Message:
     topic: str
     data: Any = field(order=False)
 
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> 'Message':
+        return cls(data['topic'], SimpleNamespace(**data.get('data', {})))
+
 
 @frozen
 class TraceEvent:
     timestamp: float
     messages: Tuple[Message] = field(factory=tuple, order=False, converter=tuple)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> 'TraceEvent':
+        messages = map(Message.from_dict, data.get('messages', []))
+        return cls(data['timestamp'], messages)
 
     def merge(self, other: 'TraceEvent') -> 'TraceEvent':
         if self.timestamp != other.timestamp:
@@ -50,6 +60,11 @@ class Trace:
         for event in unsorted_events:
             insort_event(events, event)
         return cls(events)
+
+    @classmethod
+    def from_list_of_dict(cls, data: Iterable[Mapping[str, Any]]) -> 'Trace':
+        events = map(TraceEvent.from_dict, data.get('events', []))
+        return Trace(events)
 
     def add(self, event: TraceEvent) -> 'Trace':
         events = list(self.events)
