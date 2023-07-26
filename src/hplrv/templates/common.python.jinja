@@ -57,8 +57,8 @@ class {{ sm.class_name }}:
     )
 
     PROP_ID = '{{ sm.property_id }}'
-    PROP_TITLE = '''{{ sm.property_title|d('HPL Property') }}'''
-    PROP_DESC = '''{{ sm.property_desc|d('') }}'''
+    PROP_TITLE = '''{{ sm.property_title|d('HPL Property', true)|trim('"') }}'''
+    PROP_DESC = '''{{ sm.property_desc|d('No description.', true)|trim('"') }}'''
     HPL_PROPERTY = r'''{{ sm.property_text }}'''
 
     def __init__(self):
