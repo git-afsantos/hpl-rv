@@ -254,7 +254,7 @@ class MonitorServer:
         port: int = request.json.get('port')
         server = LiveMonitoringServer(host, port, on_update=self._on_live_server_update)
         if server in self.servers:
-            return
+            return { 'servers': [s.asdict() for s in self.servers] }
         try:
             server.connect()
         except (OSError, ConnectionRefusedError) as e:
