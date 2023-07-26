@@ -67,10 +67,10 @@ async function postData(url = "", data = {}) {
 }
 
 
-function padWithMonitors(servers, n) {
-  while (servers.length < n) {
-    const i = servers.length + 1;
-    servers.push({
+function padWithMonitors(monitors, n) {
+  while (monitors.length < n) {
+    const i = monitors.length + 1;
+    monitors.push({
       id: `p${i}`,
       title: `Property ${i}`,
       property: "",
@@ -116,10 +116,11 @@ const ConnectionDialog = {
       this.$refs.dialog.close();
       this.$emit("modal-closed");
     },
-  
+    
     connectToLiveMonitor() {
       this.$emit("modal-closed");
       this.$emit("connect-to-server", this.host, this.port);
+      this.$refs.dialog.close();
     }
   },
 };
@@ -337,7 +338,9 @@ const app = createApp({
         const server = this.servers[i];
         if (server.host !== host) { continue }
         if (server.port !== port) { continue }
+
         this.servers.splice(i, 1);
+
         if (this.selectedServer === i) {
           if (this.servers.length === 0) {
             this.selectedServer = null;
@@ -351,6 +354,12 @@ const app = createApp({
           // removed one above the selected; shift by one
           this.selectedServer--;
         }
+
+        if (this.servers.length === 0 && this.websocket != null) {
+          this.websocket.close();
+          this.websocket = null;
+        }
+
         return;
       }
     },
@@ -365,11 +374,17 @@ const app = createApp({
       .then(data => {
         self.servers = [];
         for (const server of data.servers) {
-          self.servers.push({ ...server, monitors: [] });
+          console.log("register new live server", server);
+          self.servers.push({ host: server.host, port: server.port, monitors: [] });
         }
+        if (self.servers.length > 0) {
+          self.selectedServer = i;
+        }
+        console.log("server list", self.servers);
         if (self.websocket == null) {
-          self.websocket = new WebSocket("/ws");
+          self.websocket = new WebSocket(`ws://${window.location.host}/ws`);
           self.websocket.onmessage = event => self.onMonitorUpdate(JSON.parse(event.data));
+          self.websocket.onclose = () => { self.websocket = null };
         }
       })
       .catch((reason) => alert(`Error: ${reason}`));
@@ -380,13 +395,14 @@ const app = createApp({
     },
 
     onMonitorUpdate(msg) {
+      console.log("message from live server", msg);
       for (const server of this.servers) {
         const addr = `${server.host}:${server.port}`;
         if (addr !== msg.server) { continue }
 
         const i = msg.id;
-        padWithMonitors(this.servers, i+1);
-        this.servers[i] = msg.monitor;
+        padWithMonitors(server.monitors, i+1);
+        server.monitors[i] = msg.monitor;
         return;
       }
     },
