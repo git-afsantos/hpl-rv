@@ -27,7 +27,7 @@ class Message:
         return cls(data['topic'], SimpleNamespace(**data.get('data', {})))
 
 
-@frozen
+@frozen(order=True)
 class TraceEvent:
     timestamp: float
     messages: Tuple[Message] = field(factory=tuple, order=False, converter=tuple)
@@ -63,7 +63,7 @@ class Trace:
 
     @classmethod
     def from_list_of_dict(cls, data: Iterable[Mapping[str, Any]]) -> 'Trace':
-        events = map(TraceEvent.from_dict, data.get('events', []))
+        events = map(TraceEvent.from_dict, data)
         return Trace(events)
 
     def add(self, event: TraceEvent) -> 'Trace':
