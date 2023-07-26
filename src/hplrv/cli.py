@@ -23,7 +23,7 @@ from typing import Any, Dict, Final, List, Optional
 import argparse
 import sys
 
-from hplrv import __version__ as current_version, gen, gui
+from hplrv import __version__ as current_version, gen, gui, play
 
 ###############################################################################
 # Constants
@@ -32,6 +32,7 @@ from hplrv import __version__ as current_version, gen, gui
 PROG: Final[str] = 'hpl-rv'
 CMD_GEN: Final[str] = 'gen'
 CMD_GUI: Final[str] = 'gui'
+CMD_PLAY: Final[str] = 'play'
 
 ###############################################################################
 # Argument Parsing
@@ -52,7 +53,7 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
     parser.add_argument(
         'cmd',
         metavar='CMD',
-        choices=[CMD_GEN, CMD_GUI],
+        choices=[CMD_GEN, CMD_GUI, CMD_PLAY],
         help=f'a {PROG} command to run',
     )
 
@@ -110,6 +111,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return gen.subprogram(args.get('args'), config)
         if cmd == CMD_GUI:
             return gui.subprogram(args.get('args'), config)
+        if cmd == CMD_PLAY:
+            return play.subprogram(args.get('args'), config)
 
     except KeyboardInterrupt:
         print('Aborted manually.', file=sys.stderr)
