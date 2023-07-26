@@ -128,7 +128,7 @@ class LiveMonitoringServer:
     def run(self):
         try:
             with self._socket:
-                reader = SocketStreamReader(s)
+                reader = SocketStreamReader(self._socket)
 
                 # read initial monitor report
                 data = reader.readline()
