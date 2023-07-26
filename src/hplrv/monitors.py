@@ -10,7 +10,7 @@ from typing import Optional
 from collections import defaultdict, namedtuple
 from enum import IntEnum
 
-from attrs import field, frozen
+from attrs import frozen
 from hpl.ast import HplPredicate, HplVacuousTruth
 from hpl.logic import refactor_reference, replace_this_with_var, replace_var_with_this
 
