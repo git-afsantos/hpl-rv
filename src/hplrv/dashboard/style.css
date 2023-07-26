@@ -6,6 +6,7 @@ body {
   font-family: 'Montserrat', sans-serif;
   font-size: .75rem;
   height: 100vh;
+  max-height: 100vh;
   padding: 0;
   margin: 0;
   overflow: hidden;
@@ -14,6 +15,7 @@ body {
 #app {
   padding: 1.5em;
   height: 100%;
+  overflow: hidden;
 }
 
 #app main {
@@ -22,14 +24,16 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 .card-container {
-  flex: 1 1 auto;
+  flex: 1;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   gap: 1em;
+  overflow: hidden;
 }
 
 .card {
@@ -40,6 +44,7 @@ body {
   padding: 2em;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -58,11 +63,12 @@ body {
 }
 
 .card-body {
-  flex: 1 0 auto;
+  flex: 1;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+  overflow: auto;
 }
 
 .card-body ul {
