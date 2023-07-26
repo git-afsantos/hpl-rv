@@ -378,7 +378,7 @@ const app = createApp({
           self.servers.push({ host: server.host, port: server.port, monitors: [] });
         }
         if (self.servers.length > 0) {
-          self.selectedServer = i;
+          self.selectedServer = 0;
         }
         console.log("server list", self.servers);
         if (self.websocket == null) {
