@@ -10,8 +10,8 @@ from threading import Lock          # needed by PropertyMonitor
 
 from hpl.parser import property_parser
 
-from hplrv.monitors import MonitorState
 from hplrv.gen import MonitorGenerator
+from hplrv.monitors import EventType, MonitorState
 
 from .common_data import *
 from .absence_traces import *
