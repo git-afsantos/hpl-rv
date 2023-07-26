@@ -1,0 +1,33 @@
+[
+  {
+    "timestamp": 1,
+    "messages": [
+      {
+        "topic": "/ns/topic",
+        "data": { "data": 1 }
+      }
+    ]
+  },
+  {
+    "timestamp": 5,
+    "messages": [
+      {
+        "topic": "/p",
+        "data": { "data": 1, "psi": false }
+      }
+    ]
+  },
+  {
+    "timestamp": 5.05,
+    "messages": [
+      {
+        "topic": "/b",
+        "data": { "data": 1, "array": [1, 0, 0, 0, 0] }
+      }
+    ]
+  },
+  {
+    "timestamp": 10,
+    "messages": []
+  }
+]
