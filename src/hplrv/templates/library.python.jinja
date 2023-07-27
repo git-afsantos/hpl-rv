@@ -84,7 +84,7 @@ def _witness_to_json(witness):
         data.append({
             'topic': record.topic,
             'timestamp': record.timestamp,
-            'messsage': repr(record.msg),
+            'message': repr(getattr(record.msg, '__dict__', record.msg)),
         })
     return data
 
