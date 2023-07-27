@@ -111,18 +111,46 @@ const ConnectionDialog = {
         this.$emit("modal-opened");
       }
     },
-  
+
     cancelDialog() {
       this.$refs.dialog.close();
       this.$emit("modal-closed");
     },
-    
+
     connectToLiveMonitor() {
       this.$emit("modal-closed");
       this.$emit("connect-to-server", this.host, this.port);
       this.$refs.dialog.close();
     }
   },
+};
+
+
+const WitnessDialog = {
+  template: "#vue-witness-dialog",
+
+  emits: ["modal-opened", "modal-closed"],
+
+  data() { return { witness: [] } },
+
+  computed: {
+    isOpen() { return this.$refs.dialog.open }
+  },
+
+  methods: {
+    show(witness) {
+      this.witness = witness || [];
+      if (!this.isOpen) {
+        this.$refs.dialog.showModal();
+        this.$emit("modal-opened");
+      }
+    },
+
+    cancelDialog() {
+      this.$refs.dialog.close();
+      this.$emit("modal-closed");
+    }
+  }
 };
 
 
@@ -213,10 +241,18 @@ const LiveServer = {
 const RuntimeMonitorList = {
   template: "#vue-runtime-monitor-list",
 
+  emits: ["show-witness"],
+
   props: {
     monitors: {
       type: Array,
       default(_rawProps) { return [] },
+    }
+  },
+
+  methods: {
+    showWitness(witness) {
+      this.$emit("show-witness", witness);
     }
   }
 };
@@ -224,6 +260,8 @@ const RuntimeMonitorList = {
 
 const RuntimeMonitor = {
   template: "#vue-runtime-monitor",
+
+  emits: ["show-witness"],
 
   props: {
     title: String,
@@ -284,7 +322,7 @@ const RuntimeMonitor = {
   methods: {
     showWitness() {
       if (this.witness == null) { return }
-      alert("TODO: verdict witness");
+      this.$emit("show-witness", this.witness);
     }
   }
 };
@@ -364,6 +402,10 @@ const app = createApp({
       }
     },
 
+    showWitnessDialog(witness) {
+      this.$refs.witnessDialog.show(witness);
+    },
+
     showConnectionDialog() {
       this.$refs.connectionDialog.show();
     },
@@ -430,6 +472,7 @@ const app = createApp({
 // -----------------------------------------------------------------------------
 
 app.component("ConnectionDialog", ConnectionDialog);
+app.component("WitnessDialog", WitnessDialog);
 app.component("LiveServerList", LiveServerList);
 app.component("LiveServer", LiveServer);
 app.component("RuntimeMonitorList", RuntimeMonitorList);

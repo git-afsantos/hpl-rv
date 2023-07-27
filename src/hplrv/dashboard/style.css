@@ -40,7 +40,8 @@ body {
   flex: 1 1 auto;
   border-radius: 8px;
   background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); */
+  border: 1px solid whitesmoke;
   padding: 2em;
   display: flex;
   flex-direction: column;
@@ -48,7 +49,8 @@ body {
 }
 
 .card:hover {
-  outline: 1px solid lightgray;
+  /* outline: 1px solid lightgray; */
+  border: 1px solid lightgray;
 }
 
 .card.server-list {
@@ -98,7 +100,8 @@ body {
 }
 
 .live-server:not(:first-child),
-.tracked-monitor:not(:first-child) {
+.tracked-monitor:not(:first-child),
+.witness > li:not(:first-child) {
   border-top: 1px solid lightgray;
 }
 
@@ -233,4 +236,19 @@ dialog::backdrop {
 
 .blurred {
   filter: blur(4px);
+}
+
+.witness-dialog {
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.witness {
+  flex: 1;
+  overflow: auto;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
 }

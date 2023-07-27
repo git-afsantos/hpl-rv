@@ -23,7 +23,9 @@
           @select-server="onServerSelected"
           @close-server="onServerClosed">
         </live-server-list>
-        <runtime-monitor-list :monitors="displayedMonitors">
+        <runtime-monitor-list
+          :monitors="displayedMonitors"
+          @show-witness="showWitnessDialog">
         </runtime-monitor-list>
       </div>
       <connection-dialog
@@ -32,6 +34,11 @@
         @modal-closed="onModalClosed"
         @connect-to-server="connectToLiveMonitor">
       </connection-dialog>
+      <witness-dialog
+        ref="witnessDialog"
+        @modal-opened="onModalOpened"
+        @modal-closed="onModalClosed">
+      </witness-dialog>
     </main>
   </template>
 
@@ -77,7 +84,11 @@
       <h2>Runtime Monitors</h2>
       <div class="card-body">
         <ul v-if="monitors.length > 0">
-          <runtime-monitor v-for="monitor in monitors" v-bind="monitor"></runtime-monitor>
+          <runtime-monitor
+            v-for="monitor in monitors"
+            v-bind="monitor"
+            @show-witness="showWitness">
+          </runtime-monitor>
         </ul>
         <p v-else>
           There are no runtime monitors.
@@ -114,6 +125,27 @@
       <div class="button-bar">
         <button @click="cancelDialog">Cancel</button>
         <button @click="connectToLiveMonitor">Connect</button>
+      </div>
+    </dialog>
+  </template>
+
+  <template id="vue-witness-dialog">
+    <dialog ref="dialog">
+      <div class="witness-dialog">
+        <ul class="witness" v-if="witness.length > 0">
+          <li v-for="record in witness">
+            <p>
+              <b>@ {{ record.timestamp }} s</b> on <code>{{ record.topic }}:</code>
+            </p>
+            <p>
+              <small><code>{{ record.message }}</code></small>
+            </p>
+          </li>
+        </ul>
+        <p v-else><i>Empty message trace.</i></p>
+        <div class="button-bar">
+          <button @click="cancelDialog">Close</button>
+        </div>
       </div>
     </dialog>
   </template>
