@@ -17,6 +17,8 @@ pip install hpl-rv
 
 ## Usage
 
+### Code Generation
+
 This package provides a command line interface from which you can generate runtime monitors with a simple command.
 
 ```bash
@@ -37,6 +39,49 @@ hpl_properties = ['globally: no (/a or /b)']
 code: str = lib_from_properties(hpl_properties)
 print(code)
 ```
+
+### Monitoring Dashboard
+
+This package also includes a web-based dashboard that enables live feedback from runtime monitors in a human-friendly format.
+
+![Monitoring Dashboard](./docs/screenshot.png)
+
+To execute the web server for this dashboard, run the `gui` command:
+
+```bash
+hpl-rv gui --host "127.0.0.1" --port 8080
+```
+
+Then, open the dashboard client with a web browser (e.g., on `http://localhost:8080`).
+
+Through the dashboard, you can connect to runtime monitors to get live feedback.
+To enable this feature, though, your runtime monitors should first start the feedback server.
+
+For example, for code generated with `lib_from_properties()`, the main script where these monitors are included should follow roughly the following guidelines.
+
+```py
+from threading import Thread
+from .generated_monitors import HplMonitorManager
+
+man = HplMonitorManager()
+man.live_server.host = '127.0.0.1'
+man.live_server.port = 4242
+thread: Thread = man.live_server.start_thread()
+now: float = 0.0
+man.launch(now)
+try:
+    # sleep or feed messages to the monitors; example:
+    while True:
+        sleep(1.0)
+        now += 1.0
+        man.on_timer(now)
+except KeyboardInterrupt:
+    pass
+man.shutdown(now)
+thread.join(10.0)
+```
+
+The call to `live_server.start_thread()` is what enables the dashboard to get live feedback.
 
 ## GitHub Features
 
