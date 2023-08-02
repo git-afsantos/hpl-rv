@@ -189,7 +189,7 @@ class MonitorGenerator:
         spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
     ) -> str:
         data = self.data_for_monitor_library(spec_or_properties)
-        return self.renderer.render_template('library.python.jinja', data)
+        return self.renderer.render_template('library.py.jinja', data)
 
     def data_for_monitor_library(
         self,
@@ -249,22 +249,22 @@ class MonitorGenerator:
     def _template(self, hpl_property, id_as_class):
         if hpl_property.pattern.is_absence:
             builder = AbsenceBuilder(hpl_property)
-            template_file = 'absence.python.jinja'
+            template_file = 'absence.py.jinja'
         elif hpl_property.pattern.is_existence:
             builder = ExistenceBuilder(hpl_property)
-            template_file = 'existence.python.jinja'
+            template_file = 'existence.py.jinja'
         elif hpl_property.pattern.is_requirement:
             builder = RequirementBuilder(hpl_property)
             if not builder.has_trigger_refs:
-                template_file = 'requirement-simple.python.jinja'
+                template_file = 'requirement-simple.py.jinja'
             else:
-                template_file = 'requirement-refs.python.jinja'
+                template_file = 'requirement-refs.py.jinja'
         elif hpl_property.pattern.is_response:
             builder = ResponseBuilder(hpl_property)
-            template_file = 'response.python.jinja'
+            template_file = 'response.py.jinja'
         elif hpl_property.pattern.is_prevention:
             builder = PreventionBuilder(hpl_property)
-            template_file = 'prevention.python.jinja'
+            template_file = 'prevention.py.jinja'
         else:
             raise ValueError('unknown pattern: ' + str(hpl_property.pattern))
         if id_as_class:

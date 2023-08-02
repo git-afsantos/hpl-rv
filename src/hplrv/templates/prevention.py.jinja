@@ -1,8 +1,8 @@
 {# SPDX-License-Identifier: MIT #}
 {# Copyright © 2021 André Santos #}
 
-{% import 'common.python.jinja' as G %}
-{% import 'predicates.python.jinja' as P %}
+{% import 'common.py.jinja' as G %}
+{% import 'predicates.py.jinja' as P %}
 
 {##############################################################################}
 {# TIMER MACROS #}
@@ -12,12 +12,10 @@
 {# this is called if there is a timeout; the size of the pool must be >= 1 #}
 if self._state == {{ G.STATE_ACTIVE }}:
     assert len(self._pool) >= 1, 'missing trigger event'
-    {% if sm.pool_size < 0 %}
-    # pool is sorted, it suffices to read the first value
-    {% endif %}
-    if (stamp - self._pool[0].timestamp) >= {{ sm.timeout }}:
-        self.witness.append(self._pool.popleft())
-{{ G.change_to_state(G.STATE_FALSE, returns=false)|indent(8, first=true) }}
+    while self._pool and (stamp - self._pool[0].timestamp) >= {{ sm.timeout }}:
+        self._pool.popleft()
+    if not self._pool:
+{{ G.change_to_state(G.STATE_SAFE, returns=false)|indent(8, first=true) }}
 {%- endmacro %}
 
 
@@ -42,41 +40,28 @@ assert False, 'unexpected event type: {{ event.event_type }}'
 {%- endmacro %}
 
 {% macro _behaviour(sm, event, topic) -%}
-    {% if sm.pool_size != 0 %}
 assert len(self._pool) >= 1, 'missing trigger event'
-    {% endif %}
     {% if event.activator %}
 assert len(self.witness) >= 1, 'missing activator event'
 v_{{ event.activator }} = self.witness[0].msg
     {% endif %}
     {% if event.trigger %}
-        {% if sm.pool_size == 1 %}
-v_{{ event.trigger }} = self._pool[0].msg
-{% call G.do_if(event.predicate) %}
-self._pool.pop()
-{%- endcall %}
-        {%- else -%}
-n = len(self._pool)
-pool = deque()
-while self._pool:
-    rec = self._pool.popleft()
+for rec in self._pool:
     v_{{ event.trigger }} = rec.msg
-    if not ({{ P.inline_predicate(event.predicate, 'msg') }}):
-        pool.append(rec)
-self._pool = pool
-if not pool:
-{{ G.change_to_state(G.STATE_SAFE)|indent(4, first=true) }}
-if len(self._pool) != n:
-    return True
-        {%- endif %}
+{{ _fail_if(sm, event.predicate, topic)|indent(4, first=true) -}}
     {%- else %}
-        {% call G.change_to_state_if(event.predicate, G.STATE_SAFE) %}
-# all stimuli have their response
-{{ G.clear_pool(sm) }}
-        {%- endcall %}
+rec = self._pool[0]
+{{ _fail_if(sm, event.predicate, topic) -}}
     {%- endif %}
 {%- endmacro %}
 
+{% macro _fail_if(sm, phi, topic) -%}
+    {% call G.change_to_state_if(phi, G.STATE_FALSE) %}
+self.witness.append(rec)
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+{{ G.clear_pool(sm) }}
+    {%- endcall %}
+{%- endmacro %}
 
 {% macro _trigger(sm, event, topic, from_state) -%}
     {% if event.activator %}
@@ -85,14 +70,10 @@ v_{{ event.activator }} = self.witness[0].msg
     {% endif %}
     {% if from_state == G.STATE_SAFE %}
         {% call G.change_to_state_if(event.predicate, G.STATE_ACTIVE) %}
-            {% if sm.pool_size == 0 %}
-self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
-            {% else %}
 {{ G.add_to_pool(sm, topic) }}
-            {% endif %}
         {%- endcall %}
     {% elif from_state == G.STATE_ACTIVE %}
-        {% if sm.pool_size == 0 or sm.pool_size == 1 %}
+        {% if sm.pool_size == 1 and sm.timeout < 0 %}
 return False # nothing to do
         {% else %}
             {% call G.do_if(event.predicate) %}
