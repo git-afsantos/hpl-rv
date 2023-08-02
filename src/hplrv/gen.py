@@ -183,13 +183,15 @@ class TemplateRenderer:
 @frozen
 class MonitorGenerator:
     renderer: TemplateRenderer = field(factory=TemplateRenderer.from_pkg_data)
+    lang: str = 'py'
 
     def monitor_library(
         self,
         spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
     ) -> str:
         data = self.data_for_monitor_library(spec_or_properties)
-        return self.renderer.render_template('library.py.jinja', data)
+        template_file = f'{self.lang}/library.{self.lang}.jinja'
+        return self.renderer.render_template(template_file, data)
 
     def data_for_monitor_library(
         self,
@@ -249,22 +251,22 @@ class MonitorGenerator:
     def _template(self, hpl_property, id_as_class):
         if hpl_property.pattern.is_absence:
             builder = AbsenceBuilder(hpl_property)
-            template_file = 'absence.py.jinja'
+            template_file = f'{self.lang}/absence.{self.lang}.jinja'
         elif hpl_property.pattern.is_existence:
             builder = ExistenceBuilder(hpl_property)
-            template_file = 'existence.py.jinja'
+            template_file = f'{self.lang}/existence.{self.lang}.jinja'
         elif hpl_property.pattern.is_requirement:
             builder = RequirementBuilder(hpl_property)
             if not builder.has_trigger_refs:
-                template_file = 'requirement-simple.py.jinja'
+                template_file = f'{self.lang}/requirement-simple.{self.lang}.jinja'
             else:
-                template_file = 'requirement-refs.py.jinja'
+                template_file = f'{self.lang}/requirement-refs.{self.lang}.jinja'
         elif hpl_property.pattern.is_response:
             builder = ResponseBuilder(hpl_property)
-            template_file = 'response.py.jinja'
+            template_file = f'{self.lang}/response.{self.lang}.jinja'
         elif hpl_property.pattern.is_prevention:
             builder = PreventionBuilder(hpl_property)
-            template_file = 'prevention.py.jinja'
+            template_file = f'{self.lang}/prevention.{self.lang}.jinja'
         else:
             raise ValueError('unknown pattern: ' + str(hpl_property.pattern))
         if id_as_class:

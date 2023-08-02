@@ -1,0 +1,121 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{% import 'py/common.py.jinja' as G %}
+{% import 'py/predicates.py.jinja' as P %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+{% macro _on_timer(sm) %}
+{# this is called if there is a timeout; the size of the pool must be >= 1 #}
+if self._state == {{ G.STATE_ACTIVE }}:
+    assert len(self._pool) >= 1, 'missing trigger event'
+    {% if sm.pool_size < 0 %}
+    # pool is sorted, it suffices to read the first value
+    {% endif %}
+    if (stamp - self._pool[0].timestamp) >= {{ sm.timeout }}:
+        self.witness.append(self._pool.popleft())
+{{ G.change_to_state(G.STATE_FALSE, returns=false)|indent(8, first=true) }}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+{% macro _on_msg(sm, event, topic, from_state) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic, s=G.STATE_SAFE) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_TRIGGER %}
+{{ _trigger(sm, event, topic, from_state) }}
+{%- else %}
+assert False, 'unexpected event type: {{ event.event_type }}'
+{%- endif %}
+{%- endmacro %}
+
+{% macro _behaviour(sm, event, topic) -%}
+    {% if sm.pool_size != 0 %}
+assert len(self._pool) >= 1, 'missing trigger event'
+    {% endif %}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator event'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% if event.trigger %}
+        {% if sm.pool_size == 1 %}
+v_{{ event.trigger }} = self._pool[0].msg
+{% call G.do_if(event.predicate) %}
+self._pool.pop()
+{%- endcall %}
+        {%- else -%}
+n = len(self._pool)
+pool = deque()
+while self._pool:
+    rec = self._pool.popleft()
+    v_{{ event.trigger }} = rec.msg
+    if not ({{ P.inline_predicate(event.predicate, 'msg') }}):
+        pool.append(rec)
+self._pool = pool
+if not pool:
+{{ G.change_to_state(G.STATE_SAFE)|indent(4, first=true) }}
+if len(self._pool) != n:
+    return True
+        {%- endif %}
+    {%- else %}
+        {% call G.change_to_state_if(event.predicate, G.STATE_SAFE) %}
+# all stimuli have their response
+{{ G.clear_pool(sm) }}
+        {%- endcall %}
+    {%- endif %}
+{%- endmacro %}
+
+
+{% macro _trigger(sm, event, topic, from_state) -%}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% if from_state == G.STATE_SAFE %}
+        {% call G.change_to_state_if(event.predicate, G.STATE_ACTIVE) %}
+            {% if sm.pool_size == 0 %}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+            {% else %}
+{{ G.add_to_pool(sm, topic) }}
+            {% endif %}
+        {%- endcall %}
+    {% elif from_state == G.STATE_ACTIVE %}
+        {% if sm.pool_size == 0 or sm.pool_size == 1 %}
+return False # nothing to do
+        {% else %}
+            {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+            {%- endcall %}
+        {% endif %}
+    {% else %}
+assert False, 'unexpected source state: {{ from_state }}'
+    {% endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+    {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+    {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1], varargs[2]) }}
+    {%- else -%}
+assert False, 'unexpected macro function type: {{ args }}'
+    {%- endif %}
+{%- endcall %}

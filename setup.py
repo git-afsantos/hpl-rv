@@ -51,7 +51,7 @@ setup(
     package_dir={'': 'src'},
     include_package_data=True,
     package_data={
-        PYTHON_PKG: ['templates/*.jinja', 'dashboard'],
+        PYTHON_PKG: ['templates/**/*', 'dashboard'],  # templates/*.jinja
     },
     classifiers=[
         'Development Status :: 3 - Alpha',

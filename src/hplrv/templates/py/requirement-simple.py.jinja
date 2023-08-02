@@ -1,21 +1,21 @@
 {# SPDX-License-Identifier: MIT #}
 {# Copyright © 2021 André Santos #}
 
-{% import 'common.py.jinja' as G %}
-{% import 'predicates.py.jinja' as P %}
+{% import 'py/common.py.jinja' as G %}
 
 {##############################################################################}
 {# TIMER MACROS #}
 {##############################################################################}
 
 {% macro _on_timer(sm) %}
-{# this is called if there is a timeout; the size of the pool must be >= 1 #}
-if self._state == {{ G.STATE_ACTIVE }}:
-    assert len(self._pool) >= 1, 'missing trigger event'
-    while self._pool and (stamp - self._pool[0].timestamp) >= {{ sm.timeout }}:
-        self._pool.popleft()
-    if not self._pool:
-{{ G.change_to_state(G.STATE_SAFE, returns=false)|indent(8, first=true) }}
+{# this template assumes no references to EVENT_TRIGGER #}
+{# if there is a timeout, there must be a STATE_SAFE #}
+if self._state == {{ G.STATE_SAFE }}:
+    assert len(self._pool) == 1, 'missing trigger event'
+    rec = self._pool[0]
+    if (stamp - rec.timestamp) >= {{ sm.timeout }}:
+        self._pool.pop()
+{{ G.change_to_state(G.STATE_ACTIVE, returns=false)|indent(8, first=true) }}
 {%- endmacro %}
 
 
@@ -26,7 +26,7 @@ if self._state == {{ G.STATE_ACTIVE }}:
 {% macro _on_msg(sm, event, topic, from_state) -%}
 {% if event.event_type == G.EVENT_ACTIVATOR %}
 {# after or after-until -#}
-{{ G.activator_event(event, topic, s=G.STATE_SAFE) }}
+{{ G.activator_event(event, topic) }}
 {%- elif event.event_type == G.EVENT_TERMINATOR %}
 {# until or after-until -#}
 {{ G.terminator_event(sm, event, topic) }}
@@ -40,46 +40,41 @@ assert False, 'unexpected event type: {{ event.event_type }}'
 {%- endmacro %}
 
 {% macro _behaviour(sm, event, topic) -%}
-assert len(self._pool) >= 1, 'missing trigger event'
-    {% if event.activator %}
-assert len(self.witness) >= 1, 'missing activator event'
-v_{{ event.activator }} = self.witness[0].msg
+    {# no references to EVENT_TRIGGER in this template #}
+    {# we must be in STATE_ACTIVE, self._pool must be empty #}
+    {% if sm.pool_size != 0 %}
+assert not self._pool, 'unexpected trigger'
     {% endif %}
-    {% if event.trigger %}
-for rec in self._pool:
-    v_{{ event.trigger }} = rec.msg
-{{ _fail_if(sm, event.predicate, topic)|indent(4, first=true) -}}
-    {%- else %}
-rec = self._pool[0]
-{{ _fail_if(sm, event.predicate, topic) -}}
-    {%- endif %}
-{%- endmacro %}
-
-{% macro _fail_if(sm, phi, topic) -%}
-    {% call G.change_to_state_if(phi, G.STATE_FALSE) %}
-self.witness.append(rec)
-self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
-{{ G.clear_pool(sm) }}
-    {%- endcall %}
-{%- endmacro %}
-
-{% macro _trigger(sm, event, topic, from_state) -%}
     {% if event.activator %}
 assert len(self.witness) >= 1, 'missing activator'
 v_{{ event.activator }} = self.witness[0].msg
     {% endif %}
-    {% if from_state == G.STATE_SAFE %}
-        {% call G.change_to_state_if(event.predicate, G.STATE_ACTIVE) %}
-{{ G.add_to_pool(sm, topic) }}
-        {%- endcall %}
-    {% elif from_state == G.STATE_ACTIVE %}
-        {% if sm.pool_size == 1 and sm.timeout < 0 %}
-return False # nothing to do
-        {% else %}
-            {% call G.do_if(event.predicate) %}
+    {% call G.change_to_state_if(event.predicate, G.STATE_FALSE) %}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+    {%- endcall %}
+{%- endmacro %}
+
+{% macro _trigger(sm, event, topic, from_state) -%}
+    {# this could go from STATE_ACTIVE to STATE_SAFE #}
+    {# or from STATE_SAFE to itself #}
+    {% if event.activator %}
+assert len(self.witness) >= 1, 'missing activator'
+v_{{ event.activator }} = self.witness[0].msg
+    {% endif %}
+    {% if from_state == G.STATE_ACTIVE %}
+        {% if sm.timeout > 0.0 or sm.reentrant_scope %}
+            {% call G.change_to_state_if(event.predicate, G.STATE_SAFE) %}
 {{ G.add_to_pool(sm, topic) }}
             {%- endcall %}
+        {% else %}
+            {% call G.change_to_state_if(event.predicate, G.STATE_TRUE) %}
+self.witness.append(MsgRecord('{{ topic }}', stamp, msg))
+            {%- endcall %}
         {% endif %}
+    {% elif from_state == G.STATE_SAFE %}
+        {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+        {%- endcall %}
     {% else %}
 assert False, 'unexpected source state: {{ from_state }}'
     {% endif %}
