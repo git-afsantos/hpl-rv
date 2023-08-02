@@ -130,4 +130,4 @@ dmypy.json
 
 # Test outputs
 tests/output/**/*
-tests/integration/generated_monitors.py
+tests/integration/generated_monitors.*

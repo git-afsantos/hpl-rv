@@ -1,0 +1,308 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{% import 'js/predicates.js.jinja' as P %}
+
+{# P.inline_predicate(pred_ast_node, cur_msg_var_name) #}
+
+{##############################################################################}
+{# GLOBAL VARIABLES #}
+{##############################################################################}
+
+{% set STATE_OFF = 0 %}
+{% set STATE_TRUE = -1 %}
+{% set STATE_FALSE = -2 %}
+{% set STATE_INACTIVE = 1 %}
+{% set STATE_ACTIVE = 2 %}
+{% set STATE_SAFE = 3 %}
+
+{% set EVENT_OTHER = 0 %}
+{% set EVENT_ACTIVATOR = 1 %}
+{% set EVENT_TERMINATOR = 2 %}
+{% set EVENT_BEHAVIOUR = 3 %}
+{% set EVENT_TRIGGER = 4 %}
+
+{% set CALLBACK_TIMER = 1 %}
+{% set CALLBACK_MSG = 2 %}
+
+{##############################################################################}
+{# STATE MACHINE MONITOR CLASS #}
+{##############################################################################}
+
+
+{# meant to be used with call #}
+{% macro state_machine(sm) -%}
+class {{ sm.class_name }} {
+  _state = {{ STATE_OFF }};   // currently active state
+  {% if sm.pool_size != 0 %}
+  _pool = [];                 // MsgRecord deque to hold temporary records
+  {% endif %}
+  witness = [];               // MsgRecord list of observed events
+  onEnterScope = this._noop;  // callback upon entering the scope
+  onExitScope = this._noop;   // callback upon exiting the scope
+  onViolation = this._noop;   // callback upon verdict of False
+  onSuccess = this._noop;     // callback upon verdict of True
+  timeLaunch = -1;            // when was the monitor launched
+  timeShutdown = -1;          // when was the monitor shutdown
+  timeState = -1;             // when did the last state transition occur
+  cbMap = {                   // mapping of topic names to callback functions
+    {# -#}
+    {% for topic in sm.on_msg %}
+    "{{ topic }}": () => this.onMessage_{{ topic|replace('/', '_') }},
+    {% endfor %}
+  };
+
+  static PROP_ID = "{{ sm.property_id }}"
+  static PROP_TITLE = "{{ sm.property_title|d('HPL Property', true)|trim('"') }}"
+  static PROP_DESC = "{{ sm.property_desc|d('No description.', true)|trim('"') }}"
+  static HPL_PROPERTY = "{{ sm.property_text }}"
+
+  get verdict() {
+    const s = this._state;
+    return s === {{ STATE_TRUE }} ? true : (s === {{ STATE_FALSE }} ? false : null);
+  }
+
+  get isOnlineState() { return this._state !== {{ STATE_OFF }} }
+
+  get isInactiveState() { return this._state === {{ STATE_INACTIVE }} }
+
+  get isActiveState() { return this._state === {{ STATE_ACTIVE }} }
+
+  get isSafeState() { return this._state === {{ STATE_SAFE }} }
+
+  get isFalsifiableState() { return this._state === {{ STATE_ACTIVE }} }
+
+  onLaunch(timestamp) {
+    if (this._state !== {{ STATE_OFF }}) {
+      throw new Error("monitor is already turned on");
+    }
+    this._reset();
+    this.timeLaunch = timestamp;
+    {{ change_to_state(sm.initial_state.value, returns=false, enters_scope=sm.launch_enters_scope)|indent(4) }}{#- #}
+    return true;
+  }
+
+  onShutdown(timestamp) {
+    if (this._state === {{ STATE_OFF }}) {
+      throw new Error("monitor is already turned off");
+    }
+    this.timeShutdown = timestamp;
+    {{ change_to_state(STATE_OFF, returns=false)|indent(4) }}{#- #}
+    return true;
+  }
+
+  onTimer(timestamp) {
+    {% if sm.timeout > 0.0 %}
+{{ caller(CALLBACK_TIMER)|indent(4, first=true) }}
+    {%- endif %}
+    return true;
+  }
+  {# -#}
+{% for topic, states in sm.on_msg.items() %}
+
+  onMessage_{{ topic|replace('/', '_') }}(msg, timestamp) {
+    {% if sm.timeout > 0.0 %}
+{{ caller(CALLBACK_TIMER)|indent(4, first=true) }}
+    {%- endif %}
+    {% for state, events in states.items() %}
+    if (this._state === {{ state.value }}) {
+        {% for event in events %}{# -#}
+      {  // new scope ({{ event.event_type }}) to avoid possible duplicate declarations
+{{ caller(CALLBACK_MSG, event, topic, state.value)|indent(8, first=true) }}
+      }  // end scope
+        {% endfor %}
+    }
+    {% endfor %}
+    return false;
+  }
+{% endfor %}
+
+  _reset() {
+    this.witness = [];
+    {% if sm.pool_size != 0 %}
+    this._pool = [];
+    {% endif %}
+    this.timeLaunch = -1;
+    this.timeShutdown = -1;
+    this.timeState = -1;
+  }
+
+{% if sm.pool_size != 0 and sm.pool_size != 1 %}
+  _pool_insert(rec) {
+      if (this._pool.length === 0) return this._pool.push(rec);
+      const timestamp = rec.timestamp;
+      if (this._pool.length === 1) {
+        if (timestamp >= this._pool[0].timestamp) return this._pool.push(rec);
+        return this._pool.unshift(rec);
+      }
+      for (let i = this._pool.length; i > 0; i--) {
+        if (timestamp >= this._pool[i-1].timestamp) {
+          this._pool.splice(i, 0, rec);
+          return;
+        }
+      }
+      this._pool.unshift(rec);
+  }
+{% endif %}
+
+  _noop() {}
+}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# COMMON EVENTS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro activator_event(event, topic, s=STATE_ACTIVE) -%}
+    {% call change_to_state_if(event.predicate, s, enters_scope=true) %}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg))
+    {%- endcall %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro terminator_event(sm, event, topic) -%}
+    {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator event");
+const v_{{ event.activator }} = this.witness[0].msg;
+    {% endif %}
+    {% if event.verdict == true %}
+        {% call change_to_state_if(event.predicate, STATE_TRUE, exits_scope=true) %}
+{{ clear_pool(sm) }}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+        {%- endcall %}
+    {% elif event.verdict == false %}
+        {% call change_to_state_if(event.predicate, STATE_FALSE, exits_scope=true) %}
+{{ pool_to_witness(sm) }}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+        {%- endcall %}
+    {% else %}
+        {% call change_to_state_if(event.predicate, STATE_INACTIVE, exits_scope=true) %}
+{{ clear_pool(sm) }}
+this.witness = [];
+        {%- endcall %}
+    {% endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# STATE JUMPING #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# 's': int #}
+{% macro change_to_state(s, returns=true, enters_scope=false, exits_scope=false) %}
+this._state = {{ s }};
+this.timeState = timestamp;
+{% if enters_scope %}
+this.onEnterScope(timestamp);
+{% elif exits_scope %}
+this.onExitScope(timestamp);
+{% endif %}
+{% if s == STATE_TRUE %}
+this.onSuccess(timestamp, this.witness);
+{% elif s == STATE_FALSE %}
+this.onViolation(timestamp, this.witness);
+{% endif %}
+{% if returns %}
+return true;
+{%- endif %}
+{% endmacro %}
+
+
+{# assume: call #}
+{# 'phi': HplPredicate #}
+{# 's': int #}
+{% macro change_to_state_if(phi, s, returns=true, enters_scope=false, exits_scope=false) -%}
+{% if phi.is_vacuous -%}
+    {% if phi.is_true -%}
+{{ caller() }}
+{{ change_to_state(s, returns=returns, enters_scope=enters_scope, exits_scope=exits_scope) }}
+    {%- else -%}
+;  // predicate is always false
+    {%- endif %}
+{%- else -%}
+if ({{ P.inline_predicate(phi, "msg") }}) {
+{{ caller()|indent(2, first=true) }}
+{{ change_to_state(s, returns=returns, enters_scope=enters_scope, exits_scope=exits_scope)|indent(2, first=true) }}
+}
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# CONTROL FLOW #}
+{##############################################################################}
+
+
+{% macro do_if(phi, returns=true) -%}
+{% if phi.is_vacuous -%}
+    {% if phi.is_true -%}
+{{ caller() }}
+        {% if returns -%}
+return true;
+        {%- endif %}
+    {%- else -%}
+;  // predicate is always false
+    {%- endif %}
+{%- else -%}
+if ({{ P.inline_predicate(phi, "msg") }}) {
+{{ caller()|indent(2, first=true) }}
+    {% if returns %}
+    return true;
+    {%- endif %}
+}
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MESSAGE POOL MANAGEMENT #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro add_to_pool(sm, topic) -%}
+{% if sm.pool_size == 0 %}
+// there is no pool to add this message to
+{%- elif sm.pool_size == 1 -%}
+this._pool.push(MsgRecord("{{ topic }}", timestamp, msg));
+{%- else -%}
+this._pool_insert(MsgRecord("{{ topic }}", timestamp, msg));
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro clear_pool(sm) -%}
+{% if sm.pool_size != 0 %}
+this._pool.length = 0;
+{%- else %}
+// there is no record pool to clear
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro pool_to_witness(sm) -%}
+{% if sm.pool_size != 0 %}
+for (const rec of this._pool) { this.witness.push(rec); }
+this._pool.length = 0;
+{%- else %}
+// there is no record pool to clear
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro clear_pool_new(sm) -%}
+{% if sm.pool_size != 0 %}
+this._pool = [];
+{%- else %}
+// there is no record pool to clear
+{%- endif %}
+{%- endmacro %}

@@ -13,9 +13,35 @@
 // -----------------------------------------------------------------------------
 
 
+const E = Math.E;
+const PI = Math.PI;
+const INF = Infinity;
+const NAN = NaN;
+
+
+function MsgRecord(topic, timestamp, msg) {
+  return { topic, timestamp, msg };
+}
+
+
+function Verdict(value, monitor, timestamp, witness) {
+  return  { value, monitor, timestamp, witness };
+}
+
+
 // -----------------------------------------------------------------------------
 // Helper Functions
 // -----------------------------------------------------------------------------
+
+
+function noop() {}
+
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message || "Assertion failed");
+  }
+}
 
 
 function fRange(start, end) {
@@ -118,3 +144,102 @@ function fGCD(a, b) {
     b %= a;
   }
 }
+
+
+// -----------------------------------------------------------------------------
+// Monitor Classes
+// -----------------------------------------------------------------------------
+
+
+{{ monitor_classes|join('\n\n\n') }}
+
+
+// -----------------------------------------------------------------------------
+// Monitor Manager
+// -----------------------------------------------------------------------------
+
+
+class HplMonitorManager {
+  onMonitorSuccess = noop;
+  onMonitorFailure = noop;
+  monitors = [
+    {# -#}
+  {% for cname in class_names %}
+    {{ cname }}(),
+  {% endfor %}
+  ];
+  liveServer;
+
+  constructor() {
+    let i = this.monitors.length;
+    while (i--) {
+      const k = i;
+      const mon = this.monitors[i];
+      mon.onSuccess = (timestamp, witness) => this._onSuccess(k, timestamp, witness);
+      mon.onViolation = (timestamp, witness) => this._onFailure(k, timestamp, witness);
+    }
+  }
+
+  launch(timestamp) {
+    for (const mon of this.monitors) {
+      mon.onLaunch(timestamp);
+    }
+  }
+
+  shutdown(timestamp) {
+    // this.live_server.shutdown();
+    for (const mon of self.monitors) {
+      mon.onShutdown(timestamp);
+    }
+  }
+
+  onTimer(timestamp) {
+    for (const mon of this.monitors) {
+      mon.onTimer(timestamp);
+    }
+  }
+  {# -#}
+{% for topic, indices in callbacks.items() %}
+
+  {% set cbname = 'onMessage_' ~ topic.replace('/', '_') %}
+  {{ cbname }}(msg, timestamp) {
+    {% for i in indices %}
+    this.monitors[{{ i }}].{{ cbname }}(msg, timestamp);
+    {% endfor %}
+  }
+{% endfor %}
+
+  _onSuccess(i, timestamp, witness) {
+    const mon = this.monitors[i];
+    assert(mon.verdict === true);
+    // this.live_server.onMonitorSuccess(i, timestamp, witness);
+    this.onMonitorSuccess(mon, timestamp, witness);
+  }
+
+  _onFailure(i, timestamp, witness) {
+    const mon = this.monitors[i];
+    assert(mon.verdict === false);
+    // this.live_server.onMonitorFailure(i, timestamp, witness);
+    this.onMonitorFailure(mon, timestamp, witness);
+  }
+
+  buildStatusReport() {
+    const report = [];
+    for (const mon of this.monitors) {
+      report.push({
+          id: mon.constructor.PROP_ID,
+          title: mon.constructor.PROP_TITLE,
+          property: mon.constructor.HPL_PROPERTY,
+          verdict: mon.verdict,
+      });
+    }
+    return report;
+  }
+}
+
+
+// -----------------------------------------------------------------------------
+// Live Monitoring
+// -----------------------------------------------------------------------------
+
+// TODO

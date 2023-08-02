@@ -1,0 +1,121 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{% import 'js/common.js.jinja' as G %}
+{% import 'js/predicates.js.jinja' as P %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{% macro _on_timer(sm) %}
+{# this is called if there is a timeout; the size of the pool must be >= 1 #}
+if (this._state == {{ G.STATE_ACTIVE }}) {
+  assert(this._pool.length >= 1, "missing trigger event");
+  while (this._pool.length > 0 && (timestamp - this._pool[0].timestamp) >= {{ sm.timeout }}) {
+    this._pool.shift();
+  }
+  if (this._pool.length === 0) {
+{{ G.change_to_state(G.STATE_SAFE, returns=false)|indent(4, first=true) }}
+  }
+}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _on_msg(sm, event, topic, from_state) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic, s=G.STATE_SAFE) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_TRIGGER %}
+{{ _trigger(sm, event, topic, from_state) }}
+{%- else %}
+assert(false, "unexpected event type: {{ event.event_type }}");
+{%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _behaviour(sm, event, topic) -%}
+assert(this._pool.length >= 1, "missing trigger event");
+    {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator event");
+const v_{{ event.activator }} = this.witness[0].msg;
+    {% endif %}
+    {% if event.trigger %}
+for (const rec of this._pool) {
+  const v_{{ event.trigger }} = rec.msg;
+{{ _fail_if(sm, event.predicate, topic)|indent(2, first=true) -}}
+}
+    {%- else %}
+const rec = this._pool[0];
+{{ _fail_if(sm, event.predicate, topic) -}}
+    {%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{# assume: local('rec') #}
+{% macro _fail_if(sm, phi, topic) -%}
+    {% call G.change_to_state_if(phi, G.STATE_FALSE) %}
+this.witness.push(rec);
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+{{ G.clear_pool(sm) }}
+    {%- endcall %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _trigger(sm, event, topic, from_state) -%}
+    {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator");
+const v_{{ event.activator }} = this.witness[0].msg;
+    {% endif %}
+    {% if from_state == G.STATE_SAFE %}
+        {% call G.change_to_state_if(event.predicate, G.STATE_ACTIVE) %}
+{{ G.add_to_pool(sm, topic) }}
+        {%- endcall %}
+    {% elif from_state == G.STATE_ACTIVE %}
+        {% if sm.pool_size == 1 and sm.timeout < 0 %}
+return false;  // nothing to do
+        {% else %}
+            {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+            {%- endcall %}
+        {% endif %}
+    {% else %}
+assert(false, "unexpected source state: {{ from_state }}");
+    {% endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+    {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+    {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1], varargs[2]) }}
+    {%- else -%}
+assert(false, "unexpected macro function type: {{ args }}");
+    {%- endif %}
+{%- endcall %}

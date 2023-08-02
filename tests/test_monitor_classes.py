@@ -175,7 +175,7 @@ class TestMonitorClasses:
         self._reset()
         n = 0
         p = property_parser()
-        r = MonitorGenerator()
+        r = MonitorGenerator(lang='py')
         for text, traces in all_types_of_property():
             hp = p.parse(text)
             self.pool_decay = ((hp.pattern.is_requirement

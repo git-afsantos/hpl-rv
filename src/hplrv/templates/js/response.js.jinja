@@ -1,0 +1,137 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{% import 'js/common.js.jinja' as G %}
+{% import 'js/predicates.js.jinja' as P %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{% macro _on_timer(sm) %}
+{# this is called if there is a timeout; the size of the pool must be >= 1 #}
+if (this._state == {{ G.STATE_ACTIVE }}) {
+  assert(this._pool.length >= 1, "missing trigger event");
+  {% if sm.pool_size < 0 %}
+  // pool is sorted, it suffices to read the first value
+  {% endif %}
+  if ((timestamp - this._pool[0].timestamp) >= {{ sm.timeout }}) {
+    this.witness.push(this._pool.shift());
+{{ G.change_to_state(G.STATE_FALSE, returns=false)|indent(4, first=true) }}
+  }
+}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _on_msg(sm, event, topic, from_state) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic, s=G.STATE_SAFE) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_TRIGGER %}
+{{ _trigger(sm, event, topic, from_state) }}
+{%- else %}
+assert(false, "unexpected event type: {{ event.event_type }}");
+{%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _behaviour(sm, event, topic) -%}
+  {% if sm.pool_size != 0 %}
+assert(this._pool.length >= 1, "missing trigger event");
+  {% endif %}
+  {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator event");
+const v_{{ event.activator }} = this.witness[0].msg;
+  {% endif %}
+  {% if event.trigger %}
+    {% if sm.pool_size == 1 %}
+let v_{{ event.trigger }} = this._pool[0].msg;
+{% call G.do_if(event.predicate) %}
+this._pool.pop();
+{%- endcall %}
+    {%- else -%}
+const n = this._pool.length;
+const pool = [];
+while this._pool.length > 0 {
+  const rec = this._pool.shift();
+  v_{{ event.trigger }} = rec.msg;
+  if (!({{ P.inline_predicate(event.predicate, 'msg') }})) {
+    pool.push(rec);
+  }
+}
+this._pool = pool;
+if (pool.length === 0) {
+{{ G.change_to_state(G.STATE_SAFE)|indent(2, first=true) }}
+}
+if (this._pool.length !== n) {
+  return true;
+}
+    {%- endif %}
+  {%- else %}
+    {% call G.change_to_state_if(event.predicate, G.STATE_SAFE) %}
+// all stimuli have their response
+{{ G.clear_pool(sm) }}
+    {%- endcall %}
+  {%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _trigger(sm, event, topic, from_state) -%}
+  {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator");
+const v_{{ event.activator }} = this.witness[0].msg;
+  {% endif %}
+  {% if from_state == G.STATE_SAFE %}
+    {% call G.change_to_state_if(event.predicate, G.STATE_ACTIVE) %}
+      {% if sm.pool_size == 0 %}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+      {% else %}
+{{ G.add_to_pool(sm, topic) }}
+      {% endif %}
+    {%- endcall %}
+  {% elif from_state == G.STATE_ACTIVE %}
+    {% if sm.pool_size == 0 or sm.pool_size == 1 %}
+return false;  // nothing to do
+    {% else %}
+      {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+      {%- endcall %}
+    {% endif %}
+  {% else %}
+assert(false, "unexpected source state: {{ from_state }}");
+  {% endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+  {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+  {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1], varargs[2]) }}
+  {%- else -%}
+assert(false, "unexpected macro function type: {{ args }}");
+  {%- endif %}
+{%- endcall %}

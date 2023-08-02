@@ -1,0 +1,128 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{% import 'js/common.js.jinja' as G %}
+{% import 'js/predicates.js.jinja' as P %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{% macro _on_timer(sm) %}
+{# this template assumes some references to EVENT_TRIGGER #}
+{# there is no STATE_SAFE and this._pool is unbounded #}
+{# if there is a timeout, we must drop old trigger entries #}
+if (this._state === {{ G.STATE_ACTIVE }}) {
+  while (this._pool.length > 0 && (timestamp - this._pool[0].timestamp) >= {{ sm.timeout }}) {
+    this._pool.shift();
+  }
+}
+{% endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _on_msg(sm, event, topic) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_TRIGGER %}
+{{ _trigger(sm, event, topic) }}
+{%- else %}
+assert(false, "unexpected event type: {{ event.event_type }}");
+{%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _behaviour(sm, event, topic) -%}
+  {# there are references to EVENT_TRIGGER in this template #}
+  {# we check if any message in the pool satisfies the predicate #}
+  {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator");
+const v_{{ event.activator }} = this.witness[0].msg;
+  {% endif %}
+  {% call G.change_to_state_if(event.predicate, G.STATE_FALSE) %}
+{{ _check_trigger(sm) }}{# -#}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+  {%- endcall %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _check_trigger(sm) -%}
+for (const rec of this._pool) {
+  const v_1 = rec.msg;
+  {% if sm.trigger_is_simple %}
+    {% for phi in sm.dependent_predicates.values() %}
+{{ _drop_if(phi)|indent(2, first=true) }}
+    {% endfor %}
+  {%- else %}
+    {% for topic, phi in sm.dependent_predicates.items() %}
+  if (rec.topic == "{{ topic }}") {
+{{ _drop_if(phi)|indent(4, first=true) }}
+  }
+    {% endfor %}
+  {%- endif %}
+}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _drop_if(phi) -%}
+{% if phi.is_vacuous -%}
+  {% if phi.is_true -%}
+return false;
+  {%- else -%}
+;  // predicate is always false
+  {%- endif %}
+{%- else -%}
+if ({{ P.inline_predicate(phi, 'msg') }}) {
+  return false;
+}
+{%- endif %}
+{%- endmacro %}
+
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _trigger(sm, event, topic) -%}
+  {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator");
+const v_{{ event.activator }} = this.witness[0].msg;
+  {% endif %}
+  {% call G.do_if(event.predicate) %}
+{{ G.add_to_pool(sm, topic) }}
+  {%- endcall %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+  {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+  {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1]) }}
+  {%- else -%}
+assert(false, "unexpected macro function type: {{ args }}");
+  {%- endif %}
+{%- endcall %}

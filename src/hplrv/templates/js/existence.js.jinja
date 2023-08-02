@@ -1,0 +1,73 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{% import 'js/common.js.jinja' as G %}
+
+{##############################################################################}
+{# TIMER MACROS #}
+{##############################################################################}
+
+
+{# assume: local('timestamp') #}
+{% macro _on_timer(sm) %}
+if (this._state === {{ G.STATE_ACTIVE }} && (timestamp - this.timeState) >= {{ sm.timeout }}) {
+{{ G.change_to_state(G.STATE_FALSE, returns=false)|indent(2, first=true) }}
+}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MSG EVENT MACROS #}
+{##############################################################################}
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _on_msg(sm, event, topic) -%}
+{% if event.event_type == G.EVENT_ACTIVATOR %}
+{# after or after-until -#}
+{{ G.activator_event(event, topic) }}
+{%- elif event.event_type == G.EVENT_TERMINATOR %}
+{# until or after-until -#}
+{{ G.terminator_event(sm, event, topic) }}
+{%- elif event.event_type == G.EVENT_BEHAVIOUR %}
+{{ _behaviour(sm, event, topic) }}
+{%- else %}
+assert(false, "unexpected event type: {{ event.event_type }}");
+{%- endif %}
+{%- endmacro %}
+
+{# assume: local('timestamp') #}
+{# assume: local('msg') #}
+{% macro _behaviour(sm, event, topic) -%}
+  {% if event.activator %}
+assert(this.witness.length >= 1, "missing activator");
+const v_{{ event.activator }} = this.witness[0].msg;
+  {% endif %}
+  {% if sm.reentrant_scope %}
+    {# has G.STATE_SAFE #}
+    {% call G.change_to_state_if(event.predicate, G.STATE_SAFE) %}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+    {%- endcall %}
+  {% else %}
+    {# collapse to G.STATE_TRUE #}
+    {% call G.change_to_state_if(event.predicate, G.STATE_TRUE) %}
+this.witness.push(MsgRecord("{{ topic }}", timestamp, msg));
+    {%- endcall %}
+  {% endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global('state_machine') #}
+{% call(cb) G.state_machine(state_machine) -%}
+  {% if cb == G.CALLBACK_TIMER -%}
+{{ _on_timer(state_machine) }}
+  {%- elif cb == G.CALLBACK_MSG -%}
+{{ _on_msg(state_machine, varargs[0], varargs[1]) }}
+  {%- else -%}
+assert(false, "unexpected macro function type: {{ args }}");
+  {%- endif %}
+{%- endcall %}
