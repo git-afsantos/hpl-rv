@@ -1,0 +1,120 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2021 André Santos #}
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+// SPDX-License-Identifier: MIT
+// Copyright © 2023 André Santos
+
+// -----------------------------------------------------------------------------
+// Constants and Data Structures
+// -----------------------------------------------------------------------------
+
+
+// -----------------------------------------------------------------------------
+// Helper Functions
+// -----------------------------------------------------------------------------
+
+
+function fRange(start, end) {
+  if (end === undefined) {
+    end = start;
+    start = 0;
+  }
+  const step = start < end ? 1 : -1;
+
+  let index = -1;
+  let length = Math.max(Math.ceil(end - start), 0);
+  const result = Array(length);
+
+  while (length--) {
+    result[++index] = start;
+    start += step;
+  }
+  return result;
+}
+
+
+function operatorIn(value, collection) {
+  if (collection.has != null) return collection.has(value);
+  if (collection.includes != null) return collection.includes(value);
+  for (const v of collection) {
+    if (v === value) return true;
+  }
+  return false;
+}
+
+
+function toDegrees(angle) {
+  return angle * (180 / Math.PI);
+}
+
+
+function toRadians(angle) {
+  return angle * (Math.PI / 180);
+}
+
+
+function fLength(collection) {
+  let n = collection.length;
+  if (n !== undefined) return n;
+  n = collection.size;
+  if (n !== undefined) return n;
+  let i = 0;
+  for (const _item of collection) {
+    ++i;
+  }
+  return i;
+}
+
+
+function fSum(collection) {
+  let total = 0;
+  for (const x of collection) { total += x; }
+  return total;
+}
+
+
+function fProduct(collection) {
+  let total = 0;
+  for (const x of collection) { total += x; }
+  return total;
+}
+
+
+function fMax(collection) {
+  let m = -Infinity;
+  for (const x of collection) { m = x > m ? x : m; }
+  return m;
+}
+
+
+function fMin(collection) {
+  let m = Infinity;
+  for (const x of collection) { m = x < m ? x : m; }
+  return m;
+}
+
+
+function fGCD(a, b) {
+  if (arguments.length === 1) {
+    if (fLength(a) < 2) return a[0];
+    return a.reduce((memo, next) => fGCD(memo, next), 0);
+  }
+
+  a = Math.abs(a);
+  b = Math.abs(b);
+  if (b > a) {
+    const temp = a;
+    a = b;
+    b = temp;
+  }
+  while (true) {
+    if (b === 0) return a;
+    a %= b;
+    if (a === 0) return b;
+    b %= a;
+  }
+}

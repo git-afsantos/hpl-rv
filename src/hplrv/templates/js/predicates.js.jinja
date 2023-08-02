@@ -1,0 +1,392 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{##############################################################################}
+{# PUBLIC MACROS #}
+{##############################################################################}
+
+{# Receives a HplPredicate object. #}
+{% macro inline_predicate(pred, msg) -%}
+{% if pred.is_vacuous -%}
+    {% if pred.is_true -%}
+true
+    {%- else -%}
+false
+    {%- endif %}
+{%- else -%}
+{{ _inline_expression(pred.condition, msg) }}
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# BIG SWITCH #}
+{##############################################################################}
+
+{% macro _inline_expression(expr, msg) -%}
+{% if expr.is_value -%}
+{{ _values(expr, msg) }}
+{%- elif expr.is_accessor -%}
+{{ _accessors(expr, msg) }}
+{%- elif expr.is_operator -%}
+{{ _operators(expr, msg) }}
+{%- elif expr.is_function_call -%}
+{{ _fun_call(expr, msg) }}
+{%- elif expr.is_quantifier -%}
+{{ _quantifier(expr, msg) }}
+{%- else -%}
+Error("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _values(expr, msg) -%}
+{% if expr.is_literal -%}
+{{ _literal(expr) }}
+{%- elif expr.is_set -%}
+{{ _set_literal(expr, msg) }}
+{%- elif expr.is_range -%}
+{{ _range_literal(expr, msg) }}
+{%- elif expr.is_reference -%}
+    {% if expr.is_this_msg -%}
+{{ _this_message(expr, msg) }}
+    {%- elif expr.is_variable -%}
+{{ _var_reference(expr) }}
+    {%- else -%}
+Error("{{ expr }}")
+    {%- endif %}
+{%- else -%}
+Error("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _accessors(expr, msg) -%}
+{% if expr.is_field -%}
+{{ _field_access(expr, msg) }}
+{%- elif expr.is_indexed -%}
+{{ _array_access(expr, msg) }}
+{%- else -%}
+Error("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+{% macro _operators(expr, msg) -%}
+{% if expr.arity == 1 -%}
+{{ _unary_op(expr, msg) }}
+{%- elif expr.arity == 2 -%}
+{{ _binary_op(expr, msg) }}
+{%- else -%}
+Error("{{ expr }}")
+{%- endif %}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# ATOMIC VALUES #}
+{##############################################################################}
+
+{% macro _literal(v) -%}
+{% if v.value is true -%}
+true
+{%- elif v.value is false -%}
+false
+{%- else -%}
+{{ v.value }}
+{%- endif %}
+{%- endmacro %}
+
+{% macro _this_message(v, msg) -%}
+{{ msg }}
+{%- endmacro %}
+
+{% macro _var_reference(v) -%}
+v_{{ v.name }}
+{%- endmacro %}
+
+
+{##############################################################################}
+{# COMPOUND VALUES #}
+{##############################################################################}
+
+
+{% macro _set_literal(v, msg) -%}
+{% set comma = joiner(', ') %}
+(new Set([{% for value in v.values %}{# -#}
+{{ comma() }}{{ _inline_expression(value, msg) }}{# -#}
+{% endfor %}]))
+{%- endmacro %}
+
+
+{% macro _range_literal(v, msg) -%}
+{% set l -%}
+Number({{ _inline_expression(v.min_value, msg) }}){# -#}
+    {% if v.exclude_min -%}
++1
+    {%- endif %}
+{%- endset %}
+{% set h -%}
+Number({{ _inline_expression(v.max_value, msg) }}){# -#}
+    {% if not v.exclude_max -%}
++1
+    {%- endif %}
+{%- endset %}
+fRange({{ l }}, {{ h }})
+{%- endmacro %}
+
+
+{##############################################################################}
+{# MESSAGE FIELD ACCESS #}
+{##############################################################################}
+
+{% macro _field_access(ref, msg) -%}
+{{ _inline_expression(ref.message, msg) }}.{{ ref.field }}
+{%- endmacro %}
+
+{% macro _array_access(ref, msg) -%}
+{{ _inline_expression(ref.array, msg) }}{# -#}
+[{{ _inline_expression(ref.index, msg) }}]
+{%- endmacro %}
+
+
+{##############################################################################}
+{# OPERATORS AND FUNCTIONS #}
+{##############################################################################}
+
+
+{% macro _unary_op(op, msg) -%}
+{% if op.operator == 'not' -%}
+!{{ _inline_expression(op.operand, msg) }}
+{%- else -%}
+({{ op.operator }}{{ _inline_expression(op.operand, msg) }})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _binary_op(op, msg) -%}
+{% set a = _inline_expression(op.operand1, msg) %}
+{% set b = _inline_expression(op.operand2, msg) %}
+{% if op.operator == 'implies' -%}
+(!{{ a }} || {{ b }})
+{%- elif op.operator == 'iff' -%}
+(!!{{ a }} === !!{{ b }})
+{%- elif op.operator == 'or' -%}
+({{ a }} || {{ b }})
+{%- elif op.operator == 'and' -%}
+({{ a }} && {{ b }})
+{%- elif op.operator == '=' -%}
+({{ a }} === {{ b }})
+{%- elif op.operator == '!=' -%}
+({{ a }} !== {{ b }})
+{%- elif op.operator == 'in' -%}
+    {% if op.operand2.is_value and op.operand2.is_range -%}
+        {% if op.operand2.exclude_min -%}
+            {% set lop = '>' %}
+        {%- else -%}
+            {% set lop = '>=' %}
+        {%- endif %}
+        {% if op.operand2.exclude_max -%}
+            {% set rop = '<' %}
+        {%- else -%}
+            {% set rop = '<=' %}
+        {%- endif %}
+        {% set lb = _inline_expression(op.operand2.min_value, msg) %}
+        {% set ub = _inline_expression(op.operand2.max_value, msg) %}
+({{ a }} {{ lop }} {{ lb }} and {{ a }} {{ rop }} {{ ub }})
+    {%- else -%}
+operatorIn({{ a }}, {{ b }})
+    {%- endif %}
+{%- else -%}
+    {%- if op.infix -%}
+({{ a }} {{ op.operator }} {{ b }})
+    {%- else -%}
+{{ op.operator }}({{ a }}, {{ b }})
+    {%- endif %}
+{%- endif %}
+{%- endmacro %}
+
+
+{# ensure that math functions are available #}
+{% macro _fun_call(f, msg) -%}
+{% if f.function == 'log' -%}
+{{ _function_log(f, msg) }}
+{%- elif f.function == 'int' -%}
+(Number({{ _inline_expression(f.arguments[0], msg) }}) | 0)
+{%- elif f.function == 'max' -%}
+{{ _function_max(f, msg) }}
+{%- elif f.function == 'min' -%}
+{{ _function_min(f, msg) }}
+{%- elif f.function == 'roll' -%}
+{{ _function_roll(f, msg) }}
+{%- elif f.function == 'pitch' -%}
+{{ _function_pitch(f, msg) }}
+{%- elif f.function == 'yaw' -%}
+{{ _function_yaw(f, msg) }}
+{%- else -%}
+    {% if f.function == 'deg' -%}
+{% set name = 'toDegrees' %}
+    {%- elif f.function == 'rad' -%}
+{% set name = 'toRadians' %}
+    {%- elif f.function == 'abs' -%}
+{% set name = 'Math.abs' %}
+    {%- elif f.function == 'bool' -%}
+{% set name = '!!' %}
+    {%- elif f.function == 'float' -%}
+{% set name = 'Number' %}
+    {%- elif f.function == 'str' -%}
+{% set name = 'String' %}
+    {%- elif f.function == 'len' -%}
+{% set name = 'fLength' %}
+    {%- elif f.function == 'sum' -%}
+{% set name = 'fSum' %}
+    {%- elif f.function == 'prod' -%}
+{% set name = 'fProduct' %}
+    {%- elif f.function == 'sqrt' -%}
+{% set name = 'Math.sqrt' %}
+    {%- elif f.function == 'ceil' -%}
+{% set name = 'Math.ceil' %}
+    {%- elif f.function == 'floor' -%}
+{% set name = 'Math.floor' %}
+    {%- elif f.function == 'sin' -%}
+{% set name = 'Math.sin' %}
+    {%- elif f.function == 'cos' -%}
+{% set name = 'Math.cos' %}
+    {%- elif f.function == 'tan' -%}
+{% set name = 'Math.tan' %}
+    {%- elif f.function == 'asin' -%}
+{% set name = 'Math.asin' %}
+    {%- elif f.function == 'acos' -%}
+{% set name = 'Math.acos' %}
+    {%- elif f.function == 'atan' -%}
+{% set name = 'Math.atan' %}
+    {%- elif f.function == 'atan2' -%}
+{% set name = 'Math.atan2' %}
+    {%- elif f.function == 'gcd' -%}
+{% set name = 'fGCD' %}
+    {%- else -%}
+{% set name = f.function %}
+    {%- endif %}
+{% set comma = joiner(', ') %}
+{{ name }}{# -#}
+({% for arg in f.arguments %}{# -#}
+{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{% endfor %})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _function_log(f, msg) -%}
+{% set b = f.arguments[1] %}
+{% if b.is_value and b.is_literal and b.value == 10 -%}
+Math.log10({{ _inline_expression(f.arguments[0], msg) }})
+{%- elif b.is_value and b.is_literal and b.value == 2 -%}
+Math.log2({{ _inline_expression(f.arguments[0], msg) }})
+{%- else -%}
+(Math.log({{ _inline_expression(f.arguments[0], msg) }}) {# -#}
+/ Math.log({{ _inline_expression(b, msg) }}))
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _function_max(f, msg) -%}
+{% if f.arity == 1 -%}
+fMax({{ _inline_expression(f.arguments[0], msg) }})
+{%- else -%}
+{% set comma = joiner(', ') %}
+Math.max({% for arg in f.arguments %}{# -#}
+{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{% endfor %})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _function_min(f, msg) -%}
+{% if f.arity == 1 -%}
+fMin({{ _inline_expression(f.arguments[0], msg) }})
+{%- else -%}
+{% set comma = joiner(', ') %}
+Math.min({% for arg in f.arguments %}{# -#}
+{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{% endfor %})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _function_roll(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set x = obj ~ '.x' %}
+    {% set y = obj ~ '.y' %}
+    {% set z = obj ~ '.z' %}
+    {% set w = obj ~ '.w' %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+Math.atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x }} + {{ y }} * {{ y }}))
+{%- endmacro %}
+
+
+{% macro _function_pitch(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set x = obj ~ '.x' %}
+    {% set y = obj ~ '.y' %}
+    {% set z = obj ~ '.z' %}
+    {% set w = obj ~ '.w' %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+Math.asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
+{%- endmacro %}
+
+
+{% macro _function_yaw(f, msg) -%}
+{% if f.arity == 1 -%}
+    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set x = obj ~ '.x' %}
+    {% set y = obj ~ '.y' %}
+    {% set z = obj ~ '.z' %}
+    {% set w = obj ~ '.w' %}
+{%- else -%}
+    {% set w = _inline_expression(f.arguments[0], msg) %}
+    {% set x = _inline_expression(f.arguments[1], msg) %}
+    {% set y = _inline_expression(f.arguments[2], msg) %}
+    {% set z = _inline_expression(f.arguments[3], msg) %}
+{%- endif %}{# -#}
+Math.atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} * {{ w }} + {{ x }} * {{ x }}))
+{%- endmacro %}
+
+
+{##############################################################################}
+{#  QUANTIFIERS #}
+{##############################################################################}
+
+
+{% macro _quantifier(q, msg) -%}
+({{ _q_dom(q, msg) }}.{{ _q_fun(q) }}({# -#}
+(v_{{ q.variable }}) => { {# -#}
+    {{ _inline_expression(q.condition, msg) }} {# -#}
+}))
+{%- endmacro %}
+
+
+{% macro _q_fun(q) -%}
+{% if q.is_universal -%}
+every
+{%- else -%}
+some
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _q_dom(q, msg) -%}
+{% if q.domain.can_be_array -%}
+{{ _inline_expression(q.domain, msg) }}.keys()
+{%- else -%}
+Array.from({{ _inline_expression(q.domain, msg) }})
+{%- endif %}
+{%- endmacro %}
