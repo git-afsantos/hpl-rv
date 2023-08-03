@@ -23,6 +23,7 @@ false
 {# BIG SWITCH #}
 {##############################################################################}
 
+
 {% macro _inline_expression(expr, msg) -%}
 {% if expr.is_value -%}
 {{ _values(expr, msg) }}
@@ -38,6 +39,7 @@ false
 Error("{{ expr }}")
 {%- endif %}
 {%- endmacro %}
+
 
 {% macro _values(expr, msg) -%}
 {% if expr.is_literal -%}
@@ -59,6 +61,7 @@ Error("{{ expr }}")
 {%- endif %}
 {%- endmacro %}
 
+
 {% macro _accessors(expr, msg) -%}
 {% if expr.is_field -%}
 {{ _field_access(expr, msg) }}
@@ -68,6 +71,7 @@ Error("{{ expr }}")
 Error("{{ expr }}")
 {%- endif %}
 {%- endmacro %}
+
 
 {% macro _operators(expr, msg) -%}
 {% if expr.arity == 1 -%}
@@ -80,9 +84,28 @@ Error("{{ expr }}")
 {%- endmacro %}
 
 
+{% macro _expression_as_number(expr, msg) -%}
+{% if expr.is_value and expr.is_literal and expr.can_be_number -%}
+{{ expr.value }}
+{%- else -%}
+Number({{ _inline_expression(expr, msg) }})
+{%- endif %}
+{%- endmacro %}
+
+
+{% macro _expression_as_int(expr, msg) -%}
+{% if expr.is_value and expr.is_literal and expr.can_be_number -%}
+{{ expr.value|int }}
+{%- else -%}
+Number({{ _inline_expression(expr, msg) }})
+{%- endif %}
+{%- endmacro %}
+
+
 {##############################################################################}
 {# ATOMIC VALUES #}
 {##############################################################################}
+
 
 {% macro _literal(v) -%}
 {% if v.value is true -%}
@@ -94,9 +117,11 @@ false
 {%- endif %}
 {%- endmacro %}
 
+
 {% macro _this_message(v, msg) -%}
 {{ msg }}
 {%- endmacro %}
+
 
 {% macro _var_reference(v) -%}
 v_{{ v.name }}
@@ -118,13 +143,13 @@ v_{{ v.name }}
 
 {% macro _range_literal(v, msg) -%}
 {% set l -%}
-Number({{ _inline_expression(v.min_value, msg) }}){# -#}
+{{ _expression_as_int(v.min_value, msg) }}{# -#}
     {% if v.exclude_min -%}
 +1
     {%- endif %}
 {%- endset %}
 {% set h -%}
-Number({{ _inline_expression(v.max_value, msg) }}){# -#}
+{{ _expression_as_int(v.max_value, msg) }}{# -#}
     {% if not v.exclude_max -%}
 +1
     {%- endif %}
@@ -368,9 +393,7 @@ Math.atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} 
 
 {% macro _quantifier(q, msg) -%}
 ({{ _q_dom(q, msg) }}.{{ _q_fun(q) }}({# -#}
-(v_{{ q.variable }}) => { {# -#}
-    {{ _inline_expression(q.condition, msg) }} {# -#}
-}))
+v_{{ q.variable }} => {{ _inline_expression(q.condition, msg) }}))
 {%- endmacro %}
 
 
@@ -386,6 +409,8 @@ some
 {% macro _q_dom(q, msg) -%}
 {% if q.domain.can_be_array -%}
 {{ _inline_expression(q.domain, msg) }}.keys()
+{%- elif q.domain.can_be_range -%}
+{{ _inline_expression(q.domain, msg) }}
 {%- else -%}
 Array.from({{ _inline_expression(q.domain, msg) }})
 {%- endif %}

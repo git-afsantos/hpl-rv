@@ -48,7 +48,7 @@ class {{ sm.class_name }} {
   cbMap = {                   // mapping of topic names to callback functions
     {# -#}
     {% for topic in sm.on_msg %}
-    "{{ topic }}": () => this.onMessage_{{ topic|replace('/', '_') }},
+    "{{ topic }}": (msg, timestamp) => this.onMessage_{{ topic|replace('/', '_') }}(msg, timestamp),
     {% endfor %}
   };
 
@@ -94,7 +94,7 @@ class {{ sm.class_name }} {
   onTimer(timestamp) {
     {% if sm.timeout > 0.0 %}
 {{ caller(CALLBACK_TIMER)|indent(4, first=true) }}
-    {%- endif %}
+    {% endif %}
     return true;
   }
   {# -#}
@@ -103,14 +103,16 @@ class {{ sm.class_name }} {
   onMessage_{{ topic|replace('/', '_') }}(msg, timestamp) {
     {% if sm.timeout > 0.0 %}
 {{ caller(CALLBACK_TIMER)|indent(4, first=true) }}
-    {%- endif %}
+    {% endif %}
     {% for state, events in states.items() %}
     if (this._state === {{ state.value }}) {
-        {% for event in events %}{# -#}
+      {% for event in events %}
       {  // new scope ({{ event.event_type }}) to avoid possible duplicate declarations
 {{ caller(CALLBACK_MSG, event, topic, state.value)|indent(8, first=true) }}
       }  // end scope
-        {% endfor %}
+      {% else %}
+      // there are no events to process within this state
+      {% endfor %}
     }
     {% endfor %}
     return false;
@@ -126,8 +128,8 @@ class {{ sm.class_name }} {
     this.timeShutdown = -1;
     this.timeState = -1;
   }
-
 {% if sm.pool_size != 0 and sm.pool_size != 1 %}
+
   _pool_insert(rec) {
       if (this._pool.length === 0) return this._pool.push(rec);
       const timestamp = rec.timestamp;
