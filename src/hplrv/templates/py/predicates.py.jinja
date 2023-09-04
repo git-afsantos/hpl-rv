@@ -144,23 +144,23 @@ range({{ l }}, {{ h }})
 {##############################################################################}
 
 {% macro _unary_op(op, msg) -%}
-{% if op.operator == '-' -%}
+{% if op.operator.token == '-' -%}
 -{{ _inline_expression(op.operand, msg) }}
 {%- else -%}
-({{ op.operator }} {{ _inline_expression(op.operand, msg) }})
+({{ op.operator.token }} {{ _inline_expression(op.operand, msg) }})
 {%- endif %}
 {%- endmacro %}
 
 {% macro _binary_op(op, msg) -%}
 {% set a = _inline_expression(op.operand1, msg) %}
 {% set b = _inline_expression(op.operand2, msg) %}
-{% if op.operator == 'implies' -%}
+{% if op.operator.is_implies -%}
 (not {{ a }} or {{ b }})
-{%- elif op.operator == 'iff' -%}
+{%- elif op.operator.is_iff -%}
 ({{ a }} is {{ b }})
-{%- elif op.operator == '=' -%}
+{%- elif op.operator.token == '=' -%}
 ({{ a }} == {{ b }})
-{%- elif op.operator == 'in' and op.operand2.is_value and op.operand2.is_range -%}
+{%- elif op.operator.token == 'in' and op.operand2.is_value and op.operand2.is_range -%}
     {% if op.operand2.exclude_min -%}
         {% set lop = '>' %}
     {%- else -%}
@@ -175,10 +175,10 @@ range({{ l }}, {{ h }})
     {% set ub = _inline_expression(op.operand2.max_value, msg) %}
 ({{ a }} {{ lop }} {{ lb }} and {{ a }} {{ rop }} {{ ub }})
 {%- else -%}
-    {%- if op.infix -%}
-({{ a }} {{ op.operator }} {{ b }})
+    {%- if op.is_infix -%}
+({{ a }} {{ op.operator.token }} {{ b }})
     {%- else -%}
-{{ op.operator }}({{ a }}, {{ b }})
+{{ op.operator.token }}({{ a }}, {{ b }})
     {%- endif %}
 {%- endif %}
 {%- endmacro %}
