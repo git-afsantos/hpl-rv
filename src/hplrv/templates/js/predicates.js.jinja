@@ -231,63 +231,63 @@ operatorIn({{ a }}, {{ b }})
 
 {# ensure that math functions are available #}
 {% macro _fun_call(f, msg) -%}
-{% if f.function == 'log' -%}
+{% if f.function.name == 'log' -%}
 {{ _function_log(f, msg) }}
-{%- elif f.function == 'int' -%}
+{%- elif f.function.name == 'int' -%}
 (Number({{ _inline_expression(f.arguments[0], msg) }}) | 0)
-{%- elif f.function == 'max' -%}
+{%- elif f.function.name == 'max' -%}
 {{ _function_max(f, msg) }}
-{%- elif f.function == 'min' -%}
+{%- elif f.function.name == 'min' -%}
 {{ _function_min(f, msg) }}
-{%- elif f.function == 'roll' -%}
+{%- elif f.function.name == 'roll' -%}
 {{ _function_roll(f, msg) }}
-{%- elif f.function == 'pitch' -%}
+{%- elif f.function.name == 'pitch' -%}
 {{ _function_pitch(f, msg) }}
-{%- elif f.function == 'yaw' -%}
+{%- elif f.function.name == 'yaw' -%}
 {{ _function_yaw(f, msg) }}
 {%- else -%}
-    {% if f.function == 'deg' -%}
+    {% if f.function.name == 'deg' -%}
 {% set name = 'toDegrees' %}
-    {%- elif f.function == 'rad' -%}
+    {%- elif f.function.name == 'rad' -%}
 {% set name = 'toRadians' %}
-    {%- elif f.function == 'abs' -%}
+    {%- elif f.function.name == 'abs' -%}
 {% set name = 'Math.abs' %}
-    {%- elif f.function == 'bool' -%}
+    {%- elif f.function.name == 'bool' -%}
 {% set name = '!!' %}
-    {%- elif f.function == 'float' -%}
+    {%- elif f.function.name == 'float' -%}
 {% set name = 'Number' %}
-    {%- elif f.function == 'str' -%}
+    {%- elif f.function.name == 'str' -%}
 {% set name = 'String' %}
-    {%- elif f.function == 'len' -%}
+    {%- elif f.function.name == 'len' -%}
 {% set name = 'fLength' %}
-    {%- elif f.function == 'sum' -%}
+    {%- elif f.function.name == 'sum' -%}
 {% set name = 'fSum' %}
-    {%- elif f.function == 'prod' -%}
+    {%- elif f.function.name == 'prod' -%}
 {% set name = 'fProduct' %}
-    {%- elif f.function == 'sqrt' -%}
+    {%- elif f.function.name == 'sqrt' -%}
 {% set name = 'Math.sqrt' %}
-    {%- elif f.function == 'ceil' -%}
+    {%- elif f.function.name == 'ceil' -%}
 {% set name = 'Math.ceil' %}
-    {%- elif f.function == 'floor' -%}
+    {%- elif f.function.name == 'floor' -%}
 {% set name = 'Math.floor' %}
-    {%- elif f.function == 'sin' -%}
+    {%- elif f.function.name == 'sin' -%}
 {% set name = 'Math.sin' %}
-    {%- elif f.function == 'cos' -%}
+    {%- elif f.function.name == 'cos' -%}
 {% set name = 'Math.cos' %}
-    {%- elif f.function == 'tan' -%}
+    {%- elif f.function.name == 'tan' -%}
 {% set name = 'Math.tan' %}
-    {%- elif f.function == 'asin' -%}
+    {%- elif f.function.name == 'asin' -%}
 {% set name = 'Math.asin' %}
-    {%- elif f.function == 'acos' -%}
+    {%- elif f.function.name == 'acos' -%}
 {% set name = 'Math.acos' %}
-    {%- elif f.function == 'atan' -%}
+    {%- elif f.function.name == 'atan' -%}
 {% set name = 'Math.atan' %}
-    {%- elif f.function == 'atan2' -%}
+    {%- elif f.function.name == 'atan2' -%}
 {% set name = 'Math.atan2' %}
-    {%- elif f.function == 'gcd' -%}
+    {%- elif f.function.name == 'gcd' -%}
 {% set name = 'fGCD' %}
     {%- else -%}
-{% set name = f.function %}
+{% set name = f.function.name %}
     {%- endif %}
 {% set comma = joiner(', ') %}
 {{ name }}{# -#}

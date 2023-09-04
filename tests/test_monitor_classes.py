@@ -227,7 +227,7 @@ class TestMonitorClasses:
     def _launch(self, hp, m):
         m.on_launch(0)
         self._update_debug_string(m, 0)
-        if hp.scope.is_global or hp.scope.is_until:
+        if hp.scope.is_global or (hp.scope.is_until and not hp.scope.is_after):
             assert len(self.entered_scope) == 1, self.debug_string
             assert self.entered_scope[0] == 0, self.debug_string
         else:
@@ -444,13 +444,14 @@ class TestMonitorClasses:
         self.found_failure.append((stamp, witness))
 
     def _set_trace_string(self, trace, n):
-        self.trace_string = '[Example #{}]:\n{}'.format(n, pretty_trace(trace))
+        self.trace_string = f'[Example #{n}]:\n{pretty_trace(trace)}'
 
     def _update_debug_string(self, m, time):
-        self.debug_string = ('failed for the following test'
-            '\n  [HPL]: {}'
-            '\n  {}'
-            '\n  [Timestamp]: {}'
+        self.debug_string = (
+            'failed for the following test'
+            f'\n  [HPL]: {self.hpl_string}'
+            f'\n  {self.trace_string}'
+            f'\n  [Timestamp]: {time}'
             '\n  [Monitor]:'
-            '\n{}'
-        ).format(self.hpl_string, self.trace_string, time, pretty_monitor(m))
+            f'\n{pretty_monitor(m)}'
+        )

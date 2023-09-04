@@ -131,16 +131,16 @@ class PatternBasedBuilder:
         self.on_msg = defaultdict(_default_dict_of_lists)
         if hpl_property.scope.is_global:
             self.initial_state = s0
+        elif hpl_property.scope.is_after and hpl_property.scope.is_until:
+            self.initial_state = MonitorState.INACTIVE
+            self.reentrant_scope = True
+            self.add_activator(hpl_property.scope.activator)
+            self.add_terminator(hpl_property.scope.terminator)
         elif hpl_property.scope.is_after:
             self.initial_state = MonitorState.INACTIVE
             self.add_activator(hpl_property.scope.activator)
         elif hpl_property.scope.is_until:
             self.initial_state = s0
-            self.add_terminator(hpl_property.scope.terminator)
-        elif hpl_property.scope.is_after_until:
-            self.initial_state = MonitorState.INACTIVE
-            self.reentrant_scope = True
-            self.add_activator(hpl_property.scope.activator)
             self.add_terminator(hpl_property.scope.terminator)
         else:
             raise ValueError('unknown scope: ' + str(hpl_property.scope))

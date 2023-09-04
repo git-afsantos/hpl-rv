@@ -185,27 +185,27 @@ range({{ l }}, {{ h }})
 
 {# ensure that math functions are available #}
 {% macro _fun_call(f, msg) -%}
-{% if f.function == 'log' -%}
+{% if f.function.name == 'log' -%}
 {{ _function_log(f, msg) }}
-{%- elif f.function == 'x' -%}
+{%- elif f.function.name == 'x' -%}
 {{ _function_x(f, msg) }}
-{%- elif f.function == 'y' -%}
+{%- elif f.function.name == 'y' -%}
 {{ _function_y(f, msg) }}
-{%- elif f.function == 'z' -%}
+{%- elif f.function.name == 'z' -%}
 {{ _function_z(f, msg) }}
-{%- elif f.function == 'roll' -%}
+{%- elif f.function.name == 'roll' -%}
 {{ _function_roll(f, msg) }}
-{%- elif f.function == 'pitch' -%}
+{%- elif f.function.name == 'pitch' -%}
 {{ _function_pitch(f, msg) }}
-{%- elif f.function == 'yaw' -%}
+{%- elif f.function.name == 'yaw' -%}
 {{ _function_yaw(f, msg) }}
 {%- else -%}
-    {% if f.function == 'deg' -%}
+    {% if f.function.name == 'deg' -%}
 {% set name = 'degrees' %}
-    {%- elif f.function == 'rad' -%}
+    {%- elif f.function.name == 'rad' -%}
 {% set name = 'radians' %}
     {%- else -%}
-{% set name = f.function %}
+{% set name = f.function.name %}
     {%- endif %}
 {% set comma = joiner(', ') %}
 {{ name }}{# -#}
