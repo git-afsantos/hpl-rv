@@ -23,11 +23,11 @@ This package provides a command line interface from which you can generate runti
 
 ```bash
 # generating monitors from a specification file
-hplrv gen -f my_spec.hpl
+hpl-rv gen -f my_spec.hpl
 # generating monitors directly from properties
-hplrv gen "globally: no /a"
+hpl-rv gen "globally: no /a"
 # redirecting the output to a file
-hplrv gen -o ./code.py "globally: some /b within 100ms"
+hpl-rv gen -o ./code.py "globally: some /b within 100ms"
 ```
 
 When used as a library, you can generate Python code for a runtime monitor class with a few simple steps.
