@@ -1,6 +1,6 @@
 # HPL Runtime Verification
 
-This project provides a tools from which you can build and manage runtime monitors based on [HPL properties](https://github.com/git-afsantos/hpl-specs/).
+This project provides tools from which you can build and manage runtime monitors based on [HPL properties](https://github.com/git-afsantos/hpl-specs/).
 
 - [Installation](#installation)
 - [Usage](#usage)
