@@ -14,17 +14,12 @@ true
 false
     {%- endif %}
 {%- else -%}
-{{ _inline_expression(pred.condition, msg) }}
+{{ inline_expression(pred.condition, msg) }}
 {%- endif %}
 {%- endmacro %}
 
 
-{##############################################################################}
-{# BIG SWITCH #}
-{##############################################################################}
-
-
-{% macro _inline_expression(expr, msg) -%}
+{% macro inline_expression(expr, msg) -%}
 {% if expr.is_value -%}
 {{ _values(expr, msg) }}
 {%- elif expr.is_accessor -%}
@@ -39,6 +34,11 @@ false
 Error("{{ expr }}")
 {%- endif %}
 {%- endmacro %}
+
+
+{##############################################################################}
+{# BIG SWITCH #}
+{##############################################################################}
 
 
 {% macro _values(expr, msg) -%}
@@ -88,7 +88,7 @@ Error("{{ expr }}")
 {% if expr.is_value and expr.is_literal and expr.can_be_number -%}
 {{ expr.value }}
 {%- else -%}
-Number({{ _inline_expression(expr, msg) }})
+Number({{ inline_expression(expr, msg) }})
 {%- endif %}
 {%- endmacro %}
 
@@ -97,7 +97,7 @@ Number({{ _inline_expression(expr, msg) }})
 {% if expr.is_value and expr.is_literal and expr.can_be_number -%}
 {{ expr.value|int }}
 {%- else -%}
-Number({{ _inline_expression(expr, msg) }})
+Number({{ inline_expression(expr, msg) }})
 {%- endif %}
 {%- endmacro %}
 
@@ -136,7 +136,7 @@ v_{{ v.name }}
 {% macro _set_literal(v, msg) -%}
 {% set comma = joiner(', ') %}
 (new Set([{% for value in v.values %}{# -#}
-{{ comma() }}{{ _inline_expression(value, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(value, msg) }}{# -#}
 {% endfor %}]))
 {%- endmacro %}
 
@@ -163,12 +163,12 @@ fRange({{ l }}, {{ h }})
 {##############################################################################}
 
 {% macro _field_access(ref, msg) -%}
-{{ _inline_expression(ref.message, msg) }}.{{ ref.field }}
+{{ inline_expression(ref.message, msg) }}.{{ ref.field }}
 {%- endmacro %}
 
 {% macro _array_access(ref, msg) -%}
-{{ _inline_expression(ref.array, msg) }}{# -#}
-[{{ _inline_expression(ref.index, msg) }}]
+{{ inline_expression(ref.array, msg) }}{# -#}
+[{{ inline_expression(ref.index, msg) }}]
 {%- endmacro %}
 
 
@@ -179,16 +179,16 @@ fRange({{ l }}, {{ h }})
 
 {% macro _unary_op(op, msg) -%}
 {% if op.operator.is_not -%}
-!{{ _inline_expression(op.operand, msg) }}
+!{{ inline_expression(op.operand, msg) }}
 {%- else -%}
-({{ op.operator.token }}{{ _inline_expression(op.operand, msg) }})
+({{ op.operator.token }}{{ inline_expression(op.operand, msg) }})
 {%- endif %}
 {%- endmacro %}
 
 
 {% macro _binary_op(op, msg) -%}
-{% set a = _inline_expression(op.operand1, msg) %}
-{% set b = _inline_expression(op.operand2, msg) %}
+{% set a = inline_expression(op.operand1, msg) %}
+{% set b = inline_expression(op.operand2, msg) %}
 {% if op.operator.is_implies -%}
 (!{{ a }} || {{ b }})
 {%- elif op.operator.is_iff -%}
@@ -213,8 +213,8 @@ fRange({{ l }}, {{ h }})
         {%- else -%}
             {% set rop = '<=' %}
         {%- endif %}
-        {% set lb = _inline_expression(op.operand2.min_value, msg) %}
-        {% set ub = _inline_expression(op.operand2.max_value, msg) %}
+        {% set lb = inline_expression(op.operand2.min_value, msg) %}
+        {% set ub = inline_expression(op.operand2.max_value, msg) %}
 ({{ a }} {{ lop }} {{ lb }} and {{ a }} {{ rop }} {{ ub }})
     {%- else -%}
 operatorIn({{ a }}, {{ b }})
@@ -234,7 +234,7 @@ operatorIn({{ a }}, {{ b }})
 {% if f.function.name == 'log' -%}
 {{ _function_log(f, msg) }}
 {%- elif f.function.name == 'int' -%}
-(Number({{ _inline_expression(f.arguments[0], msg) }}) | 0)
+(Number({{ inline_expression(f.arguments[0], msg) }}) | 0)
 {%- elif f.function.name == 'max' -%}
 {{ _function_max(f, msg) }}
 {%- elif f.function.name == 'min' -%}
@@ -292,7 +292,7 @@ operatorIn({{ a }}, {{ b }})
 {% set comma = joiner(', ') %}
 {{ name }}{# -#}
 ({% for arg in f.arguments %}{# -#}
-{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(arg, msg) }}{# -#}
 {% endfor %})
 {%- endif %}
 {%- endmacro %}
@@ -301,23 +301,23 @@ operatorIn({{ a }}, {{ b }})
 {% macro _function_log(f, msg) -%}
 {% set b = f.arguments[1] %}
 {% if b.is_value and b.is_literal and b.value == 10 -%}
-Math.log10({{ _inline_expression(f.arguments[0], msg) }})
+Math.log10({{ inline_expression(f.arguments[0], msg) }})
 {%- elif b.is_value and b.is_literal and b.value == 2 -%}
-Math.log2({{ _inline_expression(f.arguments[0], msg) }})
+Math.log2({{ inline_expression(f.arguments[0], msg) }})
 {%- else -%}
-(Math.log({{ _inline_expression(f.arguments[0], msg) }}) {# -#}
-/ Math.log({{ _inline_expression(b, msg) }}))
+(Math.log({{ inline_expression(f.arguments[0], msg) }}) {# -#}
+/ Math.log({{ inline_expression(b, msg) }}))
 {%- endif %}
 {%- endmacro %}
 
 
 {% macro _function_max(f, msg) -%}
 {% if f.arity == 1 -%}
-fMax({{ _inline_expression(f.arguments[0], msg) }})
+fMax({{ inline_expression(f.arguments[0], msg) }})
 {%- else -%}
 {% set comma = joiner(', ') %}
 Math.max({% for arg in f.arguments %}{# -#}
-{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(arg, msg) }}{# -#}
 {% endfor %})
 {%- endif %}
 {%- endmacro %}
@@ -325,11 +325,11 @@ Math.max({% for arg in f.arguments %}{# -#}
 
 {% macro _function_min(f, msg) -%}
 {% if f.arity == 1 -%}
-fMin({{ _inline_expression(f.arguments[0], msg) }})
+fMin({{ inline_expression(f.arguments[0], msg) }})
 {%- else -%}
 {% set comma = joiner(', ') %}
 Math.min({% for arg in f.arguments %}{# -#}
-{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(arg, msg) }}{# -#}
 {% endfor %})
 {%- endif %}
 {%- endmacro %}
@@ -337,16 +337,16 @@ Math.min({% for arg in f.arguments %}{# -#}
 
 {% macro _function_roll(f, msg) -%}
 {% if f.arity == 1 -%}
-    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set obj = inline_expression(f.arguments[0], msg) %}
     {% set x = obj ~ '.x' %}
     {% set y = obj ~ '.y' %}
     {% set z = obj ~ '.z' %}
     {% set w = obj ~ '.w' %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 Math.atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x }} + {{ y }} * {{ y }}))
 {%- endmacro %}
@@ -354,16 +354,16 @@ Math.atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} *
 
 {% macro _function_pitch(f, msg) -%}
 {% if f.arity == 1 -%}
-    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set obj = inline_expression(f.arguments[0], msg) %}
     {% set x = obj ~ '.x' %}
     {% set y = obj ~ '.y' %}
     {% set z = obj ~ '.z' %}
     {% set w = obj ~ '.w' %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 Math.asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
 {%- endmacro %}
@@ -371,16 +371,16 @@ Math.asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
 
 {% macro _function_yaw(f, msg) -%}
 {% if f.arity == 1 -%}
-    {% set obj = _inline_expression(f.arguments[0], msg) %}
+    {% set obj = inline_expression(f.arguments[0], msg) %}
     {% set x = obj ~ '.x' %}
     {% set y = obj ~ '.y' %}
     {% set z = obj ~ '.z' %}
     {% set w = obj ~ '.w' %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 Math.atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} * {{ w }} + {{ x }} * {{ x }}))
 {%- endmacro %}
@@ -393,7 +393,7 @@ Math.atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} 
 
 {% macro _quantifier(q, msg) -%}
 ({{ _q_dom(q, msg) }}.{{ _q_fun(q) }}({# -#}
-v_{{ q.variable }} => {{ _inline_expression(q.condition, msg) }}))
+v_{{ q.variable }} => {{ inline_expression(q.condition, msg) }}))
 {%- endmacro %}
 
 
@@ -408,10 +408,10 @@ some
 
 {% macro _q_dom(q, msg) -%}
 {% if q.domain.can_be_array -%}
-{{ _inline_expression(q.domain, msg) }}.keys()
+{{ inline_expression(q.domain, msg) }}.keys()
 {%- elif q.domain.can_be_range -%}
-{{ _inline_expression(q.domain, msg) }}
+{{ inline_expression(q.domain, msg) }}
 {%- else -%}
-Array.from({{ _inline_expression(q.domain, msg) }})
+Array.from({{ inline_expression(q.domain, msg) }})
 {%- endif %}
 {%- endmacro %}
