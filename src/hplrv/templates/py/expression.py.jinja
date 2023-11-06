@@ -1,0 +1,12 @@
+{# SPDX-License-Identifier: MIT #}
+{# Copyright © 2023 André Santos #}
+
+{% import 'py/predicates.py.jinja' as P %}
+
+{##############################################################################}
+{# RENDERED CODE #}
+{##############################################################################}
+
+{# assume: global(expression: HplExpression) #}
+{# assume: global(message: str) #}
+{{ P.inline_expression(expression, message) }}
