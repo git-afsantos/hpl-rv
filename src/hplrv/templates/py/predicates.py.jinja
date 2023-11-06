@@ -14,16 +14,13 @@ True
 False
     {%- endif %}
 {%- else -%}
-{{ _inline_expression(pred.condition, msg) }}
+{{ inline_expression(pred.condition, msg) }}
 {%- endif %}
 {%- endmacro %}
 
 
-{##############################################################################}
-{# BIG SWITCH #}
-{##############################################################################}
-
-{% macro _inline_expression(expr, msg) -%}
+{# Receives a HplExpression object. #}
+{% macro inline_expression(expr, msg) -%}
 {% if expr.is_value -%}
 {{ _values(expr, msg) }}
 {%- elif expr.is_accessor -%}
@@ -38,6 +35,12 @@ False
 ValueError("{{ expr }}")
 {%- endif %}
 {%- endmacro %}
+
+
+{##############################################################################}
+{# BIG SWITCH #}
+{##############################################################################}
+
 
 {% macro _values(expr, msg) -%}
 {% if expr.is_literal -%}
@@ -104,19 +107,19 @@ v_{{ v.name }}
 {% macro _set_literal(v, msg) -%}
 {% set comma = joiner(', ') %}
 ({% for value in v.values %}{# -#}
-{{ comma() }}{{ _inline_expression(value, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(value, msg) }}{# -#}
 {% endfor %})
 {%- endmacro %}
 
 {% macro _range_literal(v, msg) -%}
 {% set l -%}
-int({{ _inline_expression(v.min_value, msg) }}){# -#}
+int({{ inline_expression(v.min_value, msg) }}){# -#}
     {% if v.exclude_min -%}
 +1
     {%- endif %}
 {%- endset %}
 {% set h -%}
-int({{ _inline_expression(v.max_value, msg) }}){# -#}
+int({{ inline_expression(v.max_value, msg) }}){# -#}
     {% if not v.exclude_max -%}
 +1
     {%- endif %}
@@ -130,12 +133,12 @@ range({{ l }}, {{ h }})
 {##############################################################################}
 
 {% macro _field_access(ref, msg) -%}
-{{ _inline_expression(ref.message, msg) }}.{{ ref.field }}
+{{ inline_expression(ref.message, msg) }}.{{ ref.field }}
 {%- endmacro %}
 
 {% macro _array_access(ref, msg) -%}
-{{ _inline_expression(ref.array, msg) }}{# -#}
-[{{ _inline_expression(ref.index, msg) }}]
+{{ inline_expression(ref.array, msg) }}{# -#}
+[{{ inline_expression(ref.index, msg) }}]
 {%- endmacro %}
 
 
@@ -145,15 +148,15 @@ range({{ l }}, {{ h }})
 
 {% macro _unary_op(op, msg) -%}
 {% if op.operator.token == '-' -%}
--{{ _inline_expression(op.operand, msg) }}
+-{{ inline_expression(op.operand, msg) }}
 {%- else -%}
-({{ op.operator.token }} {{ _inline_expression(op.operand, msg) }})
+({{ op.operator.token }} {{ inline_expression(op.operand, msg) }})
 {%- endif %}
 {%- endmacro %}
 
 {% macro _binary_op(op, msg) -%}
-{% set a = _inline_expression(op.operand1, msg) %}
-{% set b = _inline_expression(op.operand2, msg) %}
+{% set a = inline_expression(op.operand1, msg) %}
+{% set b = inline_expression(op.operand2, msg) %}
 {% if op.operator.is_implies -%}
 (not {{ a }} or {{ b }})
 {%- elif op.operator.is_iff -%}
@@ -171,8 +174,8 @@ range({{ l }}, {{ h }})
     {%- else -%}
         {% set rop = '<=' %}
     {%- endif %}
-    {% set lb = _inline_expression(op.operand2.min_value, msg) %}
-    {% set ub = _inline_expression(op.operand2.max_value, msg) %}
+    {% set lb = inline_expression(op.operand2.min_value, msg) %}
+    {% set ub = inline_expression(op.operand2.max_value, msg) %}
 ({{ a }} {{ lop }} {{ lb }} and {{ a }} {{ rop }} {{ ub }})
 {%- else -%}
     {%- if op.is_infix -%}
@@ -210,7 +213,7 @@ range({{ l }}, {{ h }})
 {% set comma = joiner(', ') %}
 {{ name }}{# -#}
 ({% for arg in f.arguments %}{# -#}
-{{ comma() }}{{ _inline_expression(arg, msg) }}{# -#}
+{{ comma() }}{{ inline_expression(arg, msg) }}{# -#}
 {% endfor %})
 {%- endif %}
 {%- endmacro %}
@@ -219,92 +222,92 @@ range({{ l }}, {{ h }})
 {% macro _function_log(f, msg) -%}
 {% set b = f.arguments[1] %}
 {% if b.is_value and b.is_literal and b.value == 10 -%}
-log10({{ _inline_expression(f.arguments[0], msg) }})
+log10({{ inline_expression(f.arguments[0], msg) }})
 {%- else -%}
-log({{ _inline_expression(f.arguments[0], msg) }}, {# -#}
-    {{ _inline_expression(b, msg) }})
+log({{ inline_expression(f.arguments[0], msg) }}, {# -#}
+    {{ inline_expression(b, msg) }})
 {%- endif %}
 {%- endmacro %}
 
 {% macro _function_x(f, msg) -%}
 {% set arg = f.arguments[0] %}
 {% if arg.ros_type == none -%}
-{{ _inline_expression(arg, msg) }}.x
+{{ inline_expression(arg, msg) }}.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
-{{ _inline_expression(arg, msg) }}.point.x
+{{ inline_expression(arg, msg) }}.point.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
-{{ _inline_expression(arg, msg) }}.position.x
+{{ inline_expression(arg, msg) }}.position.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.x
+{{ inline_expression(arg, msg) }}.pose.position.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.x
+{{ inline_expression(arg, msg) }}.pose.position.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.pose.position.x
+{{ inline_expression(arg, msg) }}.pose.pose.position.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
-{{ _inline_expression(arg, msg) }}.quaternion.x
+{{ inline_expression(arg, msg) }}.quaternion.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
-{{ _inline_expression(arg, msg) }}.translation.x
+{{ inline_expression(arg, msg) }}.translation.x
 {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
-{{ _inline_expression(arg, msg) }}.transform.translation.x
+{{ inline_expression(arg, msg) }}.transform.translation.x
 {%- else -%}
-{{ _inline_expression(arg, msg) }}.x
+{{ inline_expression(arg, msg) }}.x
 {%- endif %}
 {%- endmacro %}
 
 {% macro _function_y(f, msg) -%}
 {% set arg = f.arguments[0] %}
 {% if arg.ros_type == none -%}
-{{ _inline_expression(arg, msg) }}.y
+{{ inline_expression(arg, msg) }}.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
-{{ _inline_expression(arg, msg) }}.point.y
+{{ inline_expression(arg, msg) }}.point.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
-{{ _inline_expression(arg, msg) }}.position.y
+{{ inline_expression(arg, msg) }}.position.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.y
+{{ inline_expression(arg, msg) }}.pose.position.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.y
+{{ inline_expression(arg, msg) }}.pose.position.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.pose.position.y
+{{ inline_expression(arg, msg) }}.pose.pose.position.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
-{{ _inline_expression(arg, msg) }}.quaternion.y
+{{ inline_expression(arg, msg) }}.quaternion.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
-{{ _inline_expression(arg, msg) }}.translation.y
+{{ inline_expression(arg, msg) }}.translation.y
 {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
-{{ _inline_expression(arg, msg) }}.transform.translation.y
+{{ inline_expression(arg, msg) }}.transform.translation.y
 {%- else -%}
-{{ _inline_expression(arg, msg) }}.y
+{{ inline_expression(arg, msg) }}.y
 {%- endif %}
 {%- endmacro %}
 
 {% macro _function_z(f, msg) -%}
 {% set arg = f.arguments[0] %}
 {% if arg.ros_type == none -%}
-{{ _inline_expression(arg, msg) }}.z
+{{ inline_expression(arg, msg) }}.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PointStamped' -%}
-{{ _inline_expression(arg, msg) }}.point.z
+{{ inline_expression(arg, msg) }}.point.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Pose' -%}
-{{ _inline_expression(arg, msg) }}.position.z
+{{ inline_expression(arg, msg) }}.position.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.z
+{{ inline_expression(arg, msg) }}.pose.position.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovariance' -%}
-{{ _inline_expression(arg, msg) }}.pose.position.z
+{{ inline_expression(arg, msg) }}.pose.position.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/PoseWithCovarianceStamped' -%}
-{{ _inline_expression(arg, msg) }}.pose.pose.position.z
+{{ inline_expression(arg, msg) }}.pose.pose.position.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/QuaternionStamped' -%}
-{{ _inline_expression(arg, msg) }}.quaternion.z
+{{ inline_expression(arg, msg) }}.quaternion.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/Transform' -%}
-{{ _inline_expression(arg, msg) }}.translation.z
+{{ inline_expression(arg, msg) }}.translation.z
 {%- elif arg.ros_type.type_name == 'geometry_msgs/TransformStamped' -%}
-{{ _inline_expression(arg, msg) }}.transform.translation.z
+{{ inline_expression(arg, msg) }}.transform.translation.z
 {%- else -%}
-{{ _inline_expression(arg, msg) }}.z
+{{ inline_expression(arg, msg) }}.z
 {%- endif %}
 {%- endmacro %}
 
 {% macro _function_roll(f, msg) -%}
 {% if f.arity == 1 -%}
     {% set arg = f.arguments[0] %}
-    {% set obj = _inline_expression(arg, msg) %}
+    {% set obj = inline_expression(arg, msg) %}
     {% if arg.ros_type == none -%}
         {% set x = obj ~ '.x' %}
         {% set y = obj ~ '.y' %}
@@ -352,10 +355,10 @@ log({{ _inline_expression(f.arguments[0], msg) }}, {# -#}
         {% set w = obj ~ '.w' %}
     {%- endif %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x }} + {{ y }} * {{ y }}))
 {%- endmacro %}
@@ -363,7 +366,7 @@ atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x
 {% macro _function_pitch(f, msg) -%}
 {% if f.arity == 1 -%}
     {% set arg = f.arguments[0] %}
-    {% set obj = _inline_expression(arg, msg) %}
+    {% set obj = inline_expression(arg, msg) %}
     {% if arg.ros_type == none -%}
         {% set x = obj ~ '.x' %}
         {% set y = obj ~ '.y' %}
@@ -411,10 +414,10 @@ atan2(2.0 * ({{ z }} * {{ y }} + {{ w }} * {{ x }}), 1.0 - 2.0 * ({{ x }} * {{ x
         {% set w = obj ~ '.w' %}
     {%- endif %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
 {%- endmacro %}
@@ -422,7 +425,7 @@ asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
 {% macro _function_yaw(f, msg) -%}
 {% if f.arity == 1 -%}
     {% set arg = f.arguments[0] %}
-    {% set obj = _inline_expression(arg, msg) %}
+    {% set obj = inline_expression(arg, msg) %}
     {% if arg.ros_type == none -%}
         {% set x = obj ~ '.x' %}
         {% set y = obj ~ '.y' %}
@@ -470,10 +473,10 @@ asin(2.0 * ({{ y }} * {{ w }} - {{ z }} * {{ x }}))
         {% set w = obj ~ '.w' %}
     {%- endif %}
 {%- else -%}
-    {% set w = _inline_expression(f.arguments[0], msg) %}
-    {% set x = _inline_expression(f.arguments[1], msg) %}
-    {% set y = _inline_expression(f.arguments[2], msg) %}
-    {% set z = _inline_expression(f.arguments[3], msg) %}
+    {% set w = inline_expression(f.arguments[0], msg) %}
+    {% set x = inline_expression(f.arguments[1], msg) %}
+    {% set y = inline_expression(f.arguments[2], msg) %}
+    {% set z = inline_expression(f.arguments[3], msg) %}
 {%- endif %}{# -#}
 atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} * {{ w }} + {{ x }} * {{ x }}))
 {%- endmacro %}
@@ -484,7 +487,7 @@ atan2(2.0 * ({{ z }} * {{ w }} + {{ x }} * {{ y }}), -1.0 + 2.0 * ({{ w }} * {{ 
 {##############################################################################}
 
 {% macro _quantifier(q, msg) -%}
-{{ _q_fun(q) }}({{ _inline_expression(q.condition, msg) }} {# -#}
+{{ _q_fun(q) }}({{ inline_expression(q.condition, msg) }} {# -#}
 for v_{{ q.variable }} in {{ _q_dom(q, msg) }})
 {%- endmacro %}
 
@@ -498,8 +501,8 @@ any
 
 {% macro _q_dom(q, msg) -%}
 {% if q.domain.can_be_array -%}
-range(len({{ _inline_expression(q.domain, msg) }}))
+range(len({{ inline_expression(q.domain, msg) }}))
 {%- else -%}
-{{ _inline_expression(q.domain, msg) }}
+{{ inline_expression(q.domain, msg) }}
 {%- endif %}
 {%- endmacro %}
