@@ -1,0 +1,24 @@
+# id: max8hours
+# title: "No more than 8 hours at a time"
+# description: "Do not log more than 8 hours in a single entry."
+globally: no log_time {hours > 8}
+
+# id: doneIfTime
+# title: "Issues cannot be Done without logged hours"
+# description: "An issue can only be marked Done after logging some time into it."
+globally: issue as ISSUE {status = "Done"} requires log_time {issue = @ISSUE.id}
+
+# id: doneIfWorking
+# title: "Issues can only be Done after Working"
+# description: "An issue cannot move directly from To Do to Done."
+globally: issue as ISSUE {status = "Done"} requires issue {id = @ISSUE.id and status = "Working"}
+
+# id: min1log
+# title: "At least 1 log per day"
+# description: "User has to log time at least once per day."
+globally: date causes log_time {user = "André Santos"} within 24s
+
+# id: noLogAfterDone
+# title: "No time logs if Done"
+# description: "An issue marked as Done cannot have more logged hours into it."
+globally: issue as ISSUE {status = "Done" or status = "Closed"} forbids log_time {issue = @ISSUE.id}

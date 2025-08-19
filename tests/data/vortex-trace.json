@@ -1,0 +1,108 @@
+[
+  {
+    "timestamp": 1,
+    "messages": [
+      {
+        "topic": "date",
+        "data": { "day": 15, "month": 4, "year": 2025 }
+      }
+    ]
+  },
+  {
+    "timestamp": 2,
+    "messages": [
+      {
+        "topic": "issue",
+        "data": { "id": 1, "status": "Open" }
+      },
+      {
+        "topic": "issue",
+        "data": { "id": 1, "status": "Ready" }
+      }
+    ]
+  },
+  {
+    "timestamp": 3,
+    "messages": [
+      {
+        "topic": "log_time",
+        "data": { "user": "André Santos", "issue": 1, "hours": 1 }
+      }
+    ]
+  },
+  {
+    "timestamp": 4,
+    "messages": [
+      {
+        "topic": "issue",
+        "data": { "id": 1, "status": "Working" }
+      }
+    ]
+  },
+  {
+    "timestamp": 5,
+    "messages": [
+      {
+        "topic": "log_time",
+        "data": { "user": "André Santos", "issue": 1, "hours": 9 }
+      }
+    ]
+  },
+  {
+    "timestamp": 6,
+    "messages": [
+      {
+        "topic": "date",
+        "data": { "day": 16, "month": 4, "year": 2025 }
+      }
+    ]
+  },
+  {
+    "timestamp": 7,
+    "messages": [
+      {
+        "topic": "issue",
+        "data": { "id": 2, "status": "Open" }
+      },
+      {
+        "topic": "issue",
+        "data": { "id": 2, "status": "Ready" }
+      },
+      {
+        "topic": "issue",
+        "data": { "id": 2, "status": "Working" }
+      }
+    ]
+  },
+  {
+    "timestamp": 8,
+    "messages": [
+      {
+        "topic": "log_time",
+        "data": { "user": "André Santos", "issue": 1, "hours": 4 }
+      }
+    ]
+  },
+  {
+    "timestamp": 9,
+    "messages": [
+      {
+        "topic": "issue",
+        "data": { "id": 2, "status": "Done" }
+      }
+    ]
+  },
+  {
+    "timestamp": 10,
+    "messages": [
+      {
+        "topic": "log_time",
+        "data": { "user": "André Santos", "issue": 2, "hours": 4 }
+      }
+    ]
+  },
+  {
+    "timestamp": 11,
+    "messages": []
+  }
+]

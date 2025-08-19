@@ -19,7 +19,7 @@ import pkg_resources
 
 from attrs import define, field, frozen
 from bottle import Bottle, request, response, run as serve_forever, static_file
-from bottle.ext.websocket import GeventWebSocketServer, websocket
+from bottle.ext.websocket import GeventWebSocketServer, websocket  # type: ignore
 import gevent
 from gevent.queue import Queue
 from gevent.socket import create_connection, socket
@@ -87,9 +87,7 @@ class SocketStreamReader:
             buf += memoryview(chunk)[:bytes_read]
 
         result = bytes(buf[: idx + 1])
-        self._recv_buffer = b''.join(
-            (memoryview(buf)[idx + 1 :], self._recv_buffer)
-        )
+        self._recv_buffer = b''.join((memoryview(buf)[idx + 1 :], self._recv_buffer))
         return result
 
     def _recv_into(self, view: memoryview) -> int:
@@ -150,22 +148,26 @@ class LiveMonitoringServer:
     def push_status(self):
         for i in range(len(self.monitors)):
             monitor = self.monitors[i]
-            self.on_update({
-                'server': f'{self.host}:{self.port}',
-                'id': i,
-                'monitor': monitor,
-            })
+            self.on_update(
+                {
+                    'server': f'{self.host}:{self.port}',
+                    'id': i,
+                    'monitor': monitor,
+                }
+            )
 
     def push_verdict(self, verdict: Dict[str, Any]):
         i = verdict['monitor']
         monitor = self.monitors[i]
         monitor['verdict'] = verdict['value']
         monitor['witness'] = verdict['witness']
-        self.on_update({
-            'server': f'{self.host}:{self.port}',
-            'id': i,
-            'monitor': monitor,
-        })
+        self.on_update(
+            {
+                'server': f'{self.host}:{self.port}',
+                'id': i,
+                'monitor': monitor,
+            }
+        )
 
     def asdict(self) -> Dict[str, Any]:
         return {
@@ -254,17 +256,17 @@ class MonitorServer:
         port: int = request.json.get('port')
         server = LiveMonitoringServer(host, port, on_update=self._on_live_server_update)
         if server in self.servers:
-            return { 'servers': [s.asdict() for s in self.servers] }
+            return {'servers': [s.asdict() for s in self.servers]}
         try:
             server.connect()
         except (OSError, ConnectionRefusedError) as e:
             # abort(502, 'Unable to connect to live monitoring server.')
             response.status = 502  # Bad Gateway
-            return { 'error': repr(e) }
+            return {'error': repr(e)}
         else:
             self.servers.add(server)
             gevent.spawn(self._handle_live_server, server)
-            return { 'servers': [s.asdict() for s in self.servers] }
+            return {'servers': [s.asdict() for s in self.servers]}
 
     def _handle_live_server(self, server: LiveMonitoringServer):
         try:
@@ -295,7 +297,9 @@ def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
     # TODO use gevent.kill(greenlet) or gevent.killall(greenlets, block=True, timeout=None)
     # with KeyboardInterrupt to kill all ongoing greenlets.
     server = MonitorServer(Bottle())
-    serve_forever(app=server.app, host=args['host'], port=args['port'], server=GeventWebSocketServer)
+    serve_forever(
+        app=server.app, host=args['host'], port=args['port'], server=GeventWebSocketServer
+    )
     return 0
 
 
@@ -309,9 +313,7 @@ def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
     parser = argparse.ArgumentParser(prog=PROG_GUI, description=description)
 
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help='address of the HTTP server (default: 127.0.0.1)'
+        '--host', default='127.0.0.1', help='address of the HTTP server (default: 127.0.0.1)'
     )
 
     parser.add_argument(
