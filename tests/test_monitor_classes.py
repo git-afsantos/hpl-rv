@@ -98,16 +98,11 @@ def prevention_properties():
 
 def all_types_of_property():
     # example = text, traces
-    for example in absence_properties():
-        yield example
-    for example in existence_properties():
-        yield example
-    for example in precedence_properties():
-        yield example
-    for example in response_properties():
-        yield example
-    for example in prevention_properties():
-        yield example
+    yield from absence_properties()
+    yield from existence_properties()
+    yield from precedence_properties()
+    yield from response_properties()
+    yield from prevention_properties()
 
 
 ###############################################################################
@@ -121,7 +116,7 @@ def state_name(s: MonitorState):
     try:
         return s.name
     except AttributeError:
-        return 'STATE {}'.format(s)
+        return f'STATE {s}'
 
 
 def pretty_trace(trace):
@@ -152,11 +147,11 @@ def pretty_trace(trace):
 
 def pretty_monitor(m):
     return "\n".join((
-        'm._state = {}'.format(m._state),
-        'm.time_launch = {}'.format(m.time_launch),
-        'm.time_shutdown = {}'.format(m.time_shutdown),
-        'm.time_state = {}'.format(m.time_state),
-        'm.witness = {}'.format(m.witness),
+        f'm._state = {m._state}',
+        f'm.time_launch = {m.time_launch}',
+        f'm.time_shutdown = {m.time_shutdown}',
+        f'm.time_state = {m.time_state}',
+        f'm.witness = {m.witness}',
         'm._pool = {}'.format(getattr(m, '_pool', None)),
     ))
 
@@ -195,7 +190,7 @@ class TestMonitorClasses:
                     self._dispatch(m, event, time)
                 self._shutdown(m)
                 self._reset()
-        print('Tested {} examples.'.format(n))
+        print(f'Tested {n} examples.')
 
     def _reset(self):
         self.debug_string = ''

@@ -10,10 +10,9 @@ to replay traces of messages to test monitors.
 # Imports
 ###############################################################################
 
-from typing import Any, Dict, Final, List, Optional
+from typing import Any, Final
 
 import argparse
-import asyncio
 import importlib.util
 import json
 from pathlib import Path
@@ -50,7 +49,7 @@ def import_generated_monitors(module_name: str, file_path: Path):
 
 def import_trace_from_json_file(file_path: Path) -> Trace:
     text: str = file_path.read_text(encoding='utf8')
-    data: List[Dict[str, Any]] = json.loads(text)
+    data: list[dict[str, Any]] = json.loads(text)
     return Trace.from_list_of_dict(data)
 
 
@@ -116,15 +115,15 @@ def trace_replay(monitor, trace: Trace, freq: float, shutdown: bool = True) -> f
 
 
 def subprogram(
-    argv: Optional[List[str]],
-    _settings: Optional[Dict[str, Any]] = None,
+    argv: list[str] | None,
+    _settings: dict[str, Any] | None = None,
 ) -> int:
     args = parse_arguments(argv)
     return run(args, _settings or {})
 
 
-def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
-    file_path: Optional[Path] = args['module'].resolve(strict=True)
+def run(args: dict[str, Any], _settings: dict[str, Any]) -> int:
+    file_path: Path | None = args['module'].resolve(strict=True)
     lib = import_generated_monitors(file_path.stem, file_path)
     file_path = args.get('data')
     if file_path is None:
@@ -155,7 +154,7 @@ def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
 ###############################################################################
 
 
-def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
+def parse_arguments(argv: list[str] | None) -> dict[str, Any]:
     description = 'Utility to run monitors and replay traces.'
     parser = argparse.ArgumentParser(prog=PROG_PLAY, description=description)
 

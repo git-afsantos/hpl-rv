@@ -10,7 +10,9 @@ high-level interface to generate runtime monitors from HPL properties.
 # Imports
 ###############################################################################
 
-from typing import Any, Dict, Final, Iterable, List, Optional, Type, Union
+from typing import Any, Final
+
+from collections.abc import Iterable
 
 import argparse
 from pathlib import Path
@@ -34,23 +36,23 @@ from hplrv.monitors import (
 
 PROG_GEN: Final[str] = 'hpl-rv gen'
 
-ANY_PATH: Final[Type] = Union[Path, str]
-ANY_SPEC: Final[Type] = Union[HplSpecification, str]
-ANY_PROP: Final[Type] = Union[HplProperty, str]
+type ANY_PATH = Path | str
+type ANY_SPEC = HplSpecification | str
+type ANY_PROP = HplProperty | str
 
 ###############################################################################
 # Public Interface
 ###############################################################################
 
 
-def monitors_from_files(paths: List[ANY_PATH], lang: str = 'py') -> List[str]:
+def monitors_from_files(paths: list[ANY_PATH], lang: str = 'py') -> list[str]:
     """
     Produces a list of monitor code snippets,
     given a list of paths to HPL files with specifications.
     """
     parser = specification_parser()
     r = MonitorGenerator(lang=lang)
-    outputs: List[str] = []
+    outputs: list[str] = []
     for input_path in paths:
         path: Path = Path(input_path).resolve(strict=True)
         text: str = path.read_text(encoding='utf-8').strip()
@@ -60,14 +62,14 @@ def monitors_from_files(paths: List[ANY_PATH], lang: str = 'py') -> List[str]:
     return outputs
 
 
-def lib_from_files(paths: List[ANY_PATH], lang: str = 'py') -> str:
+def lib_from_files(paths: list[ANY_PATH], lang: str = 'py') -> str:
     """
     Produces a self-contained library of monitors,
     given a list of paths to HPL files with specifications.
     """
     parser = specification_parser()
     r = MonitorGenerator(lang=lang)
-    properties: List[HplProperty] = []
+    properties: list[HplProperty] = []
     for input_path in paths:
         path: Path = Path(input_path).resolve(strict=True)
         text: str = path.read_text(encoding='utf-8').strip()
@@ -76,7 +78,7 @@ def lib_from_files(paths: List[ANY_PATH], lang: str = 'py') -> str:
     return r.monitor_library(properties)
 
 
-def monitors_from_spec(spec: ANY_SPEC, lang: str = 'py') -> List[str]:
+def monitors_from_spec(spec: ANY_SPEC, lang: str = 'py') -> list[str]:
     """
     Produces a list of monitor code snippets,
     given an HPL specification.
@@ -85,7 +87,7 @@ def monitors_from_spec(spec: ANY_SPEC, lang: str = 'py') -> List[str]:
         parser = specification_parser()
         spec = parser.parse(spec)
     r = MonitorGenerator(lang=lang)
-    outputs: List[str] = []
+    outputs: list[str] = []
     for hpl_property in spec.properties:
         outputs.append(r.monitor_class(hpl_property))
     return outputs
@@ -114,7 +116,7 @@ def monitor_from_property(property: ANY_PROP, lang: str = 'py') -> str:
     return r.monitor_class(property)
 
 
-def monitors_from_properties(properties: List[ANY_PROP], lang: str = 'py') -> List[str]:
+def monitors_from_properties(properties: list[ANY_PROP], lang: str = 'py') -> list[str]:
     """
     Produces a list of monitor code snippets,
     given a list of HPL properties.
@@ -129,7 +131,7 @@ def monitors_from_properties(properties: List[ANY_PROP], lang: str = 'py') -> Li
     return outputs
 
 
-def lib_from_properties(properties: List[ANY_PROP], lang: str = 'py') -> str:
+def lib_from_properties(properties: list[ANY_PROP], lang: str = 'py') -> str:
     """
     Produces a self-contained library of monitors,
     given a list of HPL properties.
@@ -167,9 +169,9 @@ class TemplateRenderer:
     def render_template(
         self,
         template_file: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         strip: bool = True,
-        encoding: Optional[str] = None
+        encoding: str | None = None
     ) -> str:
         template = self.jinja_env.get_template(template_file)
         text = template.render(**data)
@@ -187,7 +189,7 @@ class MonitorGenerator:
 
     def monitor_library(
         self,
-        spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
+        spec_or_properties: Iterable[HplProperty] | HplSpecification,
     ) -> str:
         data = self.data_for_monitor_library(spec_or_properties)
         template_file = f'{self.lang}/library.{self.lang}.jinja'
@@ -195,8 +197,8 @@ class MonitorGenerator:
 
     def data_for_monitor_library(
         self,
-        spec_or_properties: Union[Iterable[HplProperty], HplSpecification],
-    ) -> Dict[str, Any]:
+        spec_or_properties: Iterable[HplProperty] | HplSpecification,
+    ) -> dict[str, Any]:
         class_names = []
         callbacks = {}
         monitor_classes = []
@@ -222,9 +224,9 @@ class MonitorGenerator:
     def monitor_class(
         self,
         hpl_property: HplProperty,
-        class_name: Optional[str] = None,
+        class_name: str | None = None,
         id_as_class: bool = True,
-        encoding: Optional[str] = None,
+        encoding: str | None = None,
     ) -> str:
         data = self.data_for_monitor_class(
             hpl_property,
@@ -237,9 +239,9 @@ class MonitorGenerator:
     def data_for_monitor_class(
         self,
         hpl_property: HplProperty,
-        class_name: Optional[str] = None,
+        class_name: str | None = None,
         id_as_class: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         builder, template_file = self._template(hpl_property, id_as_class)
         if class_name:
             builder.class_name = class_name
@@ -282,15 +284,15 @@ class MonitorGenerator:
 
 
 def subprogram(
-    argv: Optional[List[str]],
-    _settings: Optional[Dict[str, Any]] = None,
+    argv: list[str] | None,
+    _settings: dict[str, Any] | None = None,
 ) -> int:
     args = parse_arguments(argv)
     return run(args, _settings or {})
 
 
-def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
-    parts: List[str] = []
+def run(args: dict[str, Any], _settings: dict[str, Any]) -> int:
+    parts: list[str] = []
     lang: str = args['lang']
     if args.get('files'):
         if args.get('just_classes'):
@@ -318,7 +320,7 @@ def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
 ###############################################################################
 
 
-def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
+def parse_arguments(argv: list[str] | None) -> dict[str, Any]:
     description = 'Generate runtime monitors from HPL properties.'
     parser = argparse.ArgumentParser(prog=PROG_GEN, description=description)
 

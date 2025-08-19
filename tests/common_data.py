@@ -5,7 +5,9 @@
 # Imports
 ###############################################################################
 
-from typing import Any, Final, Iterable, Optional
+from typing import Any, Final, Optional
+
+from collections.abc import Iterable
 
 from attrs import frozen
 
@@ -71,7 +73,7 @@ class TriggerEvent:
 class SpamEvent:
     topic: str
     msg: Any
-    state: Optional[MonitorState] = None
+    state: MonitorState | None = None
 
     @property
     def event(self) -> EventType:
@@ -80,7 +82,7 @@ class SpamEvent:
 
 @frozen
 class TimerEvent:
-    state: Optional[MonitorState] = None
+    state: MonitorState | None = None
     drops: int = 0
 
     @property
