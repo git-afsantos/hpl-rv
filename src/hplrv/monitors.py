@@ -5,8 +5,6 @@
 # Imports
 ###############################################################################
 
-from typing import Optional
-
 from collections import defaultdict
 from enum import IntEnum
 
@@ -62,8 +60,8 @@ class ActivatorEvent(MonitoringEvent):
 
 @frozen
 class TerminatorEvent(MonitoringEvent):
-    activator: Optional[str] = None
-    verdict: Optional[bool] = None
+    activator: str | None = None
+    verdict: bool | None = None
 
     @property
     def event_type(self) -> int:
@@ -72,8 +70,8 @@ class TerminatorEvent(MonitoringEvent):
 
 @frozen
 class BehaviourEvent(MonitoringEvent):
-    activator: Optional[str] = None
-    trigger: Optional[str] = None
+    activator: str | None = None
+    trigger: str | None = None
 
     @property
     def event_type(self) -> int:
@@ -82,7 +80,7 @@ class BehaviourEvent(MonitoringEvent):
 
 @frozen
 class TriggerEvent(MonitoringEvent):
-    activator: Optional[str] = None
+    activator: str | None = None
 
     @property
     def event_type(self) -> int:

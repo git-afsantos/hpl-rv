@@ -5,7 +5,9 @@
 # Imports
 ###############################################################################
 
-from typing import Any, Iterable, List, Mapping, Optional, Tuple
+from typing import Any
+
+from collections.abc import Iterable, Mapping
 
 from bisect import bisect, bisect_left
 from types import SimpleNamespace
@@ -30,7 +32,7 @@ class Message:
 @frozen(order=True)
 class TraceEvent:
     timestamp: float
-    messages: Tuple[Message] = field(factory=tuple, order=False, converter=tuple)
+    messages: tuple[Message] = field(factory=tuple, order=False, converter=tuple)
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> 'TraceEvent':
@@ -46,7 +48,7 @@ class TraceEvent:
 
 @frozen
 class Trace:
-    events: Tuple[TraceEvent] = field(factory=tuple, converter=tuple)
+    events: tuple[TraceEvent] = field(factory=tuple, converter=tuple)
 
     @events.validator
     def _ensure_sorted_timestamps(self, _attr: Any, events: Iterable[TraceEvent]) -> None:
@@ -77,13 +79,13 @@ class Trace:
             insort_event(events, event)
         return Trace(events)
 
-    def previous_timestamp(self, timestamp: float) -> Optional[float]:
+    def previous_timestamp(self, timestamp: float) -> float | None:
         # returns the timestamp of the first event
         # that comes before (<) the given timestamp, or None
         i = bisect_left(self.events, timestamp, key=get_timestamp)
         return None if i <= 0 else self.events[i-1].timestamp
 
-    def next_timestamp(self, timestamp: float) -> Optional[float]:
+    def next_timestamp(self, timestamp: float) -> float | None:
         # returns the timestamp of the first event
         # that comes after (>) the given timestamp, or None
         i = bisect(self.events, timestamp, key=get_timestamp)
@@ -99,7 +101,7 @@ def is_sorted(items: Iterable[Any]) -> bool:
     return all(items[i] <= items[i+1] for i in range(len(items) - 1))
 
 
-def insort_event(events: List[TraceEvent], event: TraceEvent) -> None:
+def insort_event(events: list[TraceEvent], event: TraceEvent) -> None:
     i = bisect(events, event)
     if i > 0 and events[i-1].timestamp == event.timestamp:
         events[i-1] = events[i-1].merge(event)

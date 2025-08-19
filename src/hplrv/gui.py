@@ -10,7 +10,9 @@ dashboard server to manage runtime monitors.
 # Imports
 ###############################################################################
 
-from typing import Any, Callable, Dict, Final, List, Optional, Set, Tuple, Type
+from typing import Any, Final
+
+from collections.abc import Callable
 
 import argparse
 import json
@@ -39,9 +41,9 @@ CLIENT_ROOT: Final[str] = str(
     .parent
 )
 
-WS_UPDATE_CB_TYPE: Final[Type] = Callable[[Dict[str, Any]], None]
+type WS_UPDATE_CB_TYPE = Callable[[dict[str, Any]], None]
 
-COMPACT: Final[Tuple[str, str]] = (',', ':')
+COMPACT: Final[tuple[str, str]] = (',', ':')
 
 
 def noop(*args, **kwargs):
@@ -111,8 +113,8 @@ class LiveMonitoringServer:
     host: str
     port: int
     on_update: WS_UPDATE_CB_TYPE = field(default=noop, eq=False, order=False)
-    monitors: List[Dict[str, Any]] = field(factory=list, init=False, eq=False, order=False)
-    _socket: Optional[socket] = field(default=None, init=False, eq=False, order=False)
+    monitors: list[dict[str, Any]] = field(factory=list, init=False, eq=False, order=False)
+    _socket: socket | None = field(default=None, init=False, eq=False, order=False)
 
     @property
     def is_connected(self) -> bool:
@@ -156,7 +158,7 @@ class LiveMonitoringServer:
                 }
             )
 
-    def push_verdict(self, verdict: Dict[str, Any]):
+    def push_verdict(self, verdict: dict[str, Any]):
         i = verdict['monitor']
         monitor = self.monitors[i]
         monitor['verdict'] = verdict['value']
@@ -169,7 +171,7 @@ class LiveMonitoringServer:
             }
         )
 
-    def asdict(self) -> Dict[str, Any]:
+    def asdict(self) -> dict[str, Any]:
         return {
             'host': self.host,
             'port': self.port,
@@ -181,7 +183,7 @@ class LiveMonitoringClient:
     websocket: Any
     updates: Queue = field(factory=Queue, init=False, eq=False, order=False)
 
-    def send_initial_server_status(self, host: str, port: int, monitors: List[Dict[str, Any]]):
+    def send_initial_server_status(self, host: str, port: int, monitors: list[dict[str, Any]]):
         server: str = f'{host}:{port}'
         for i in range(len(monitors)):
             monitor = monitors[i]
@@ -196,7 +198,7 @@ class LiveMonitoringClient:
         status = self.updates.get()
         self.send_monitor_status(status)
 
-    def send_monitor_status(self, status: Dict[str, Any]):
+    def send_monitor_status(self, status: dict[str, Any]):
         self.websocket.send(json.dumps(status, separators=COMPACT))
 
 
@@ -222,8 +224,8 @@ class LiveMonitoringClient:
 @frozen
 class MonitorServer:
     app: Bottle
-    servers: Set[LiveMonitoringServer] = field(factory=set, init=False, eq=False, order=False)
-    clients: Set[LiveMonitoringClient] = field(factory=set, init=False, eq=False, order=False)
+    servers: set[LiveMonitoringServer] = field(factory=set, init=False, eq=False, order=False)
+    clients: set[LiveMonitoringClient] = field(factory=set, init=False, eq=False, order=False)
 
     def __attrs_post_init__(self):
         self.app.get('/')(self.index)
@@ -286,14 +288,14 @@ class MonitorServer:
 
 
 def subprogram(
-    argv: Optional[List[str]],
-    _settings: Optional[Dict[str, Any]] = None,
+    argv: list[str] | None,
+    _settings: dict[str, Any] | None = None,
 ) -> int:
     args = parse_arguments(argv)
     return run(args, _settings or {})
 
 
-def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
+def run(args: dict[str, Any], _settings: dict[str, Any]) -> int:
     # TODO use gevent.kill(greenlet) or gevent.killall(greenlets, block=True, timeout=None)
     # with KeyboardInterrupt to kill all ongoing greenlets.
     server = MonitorServer(Bottle())
@@ -308,7 +310,7 @@ def run(args: Dict[str, Any], _settings: Dict[str, Any]) -> int:
 ###############################################################################
 
 
-def parse_arguments(argv: Optional[List[str]]) -> Dict[str, Any]:
+def parse_arguments(argv: list[str] | None) -> dict[str, Any]:
     description = 'Dashboard to manage runtime monitors.'
     parser = argparse.ArgumentParser(prog=PROG_GUI, description=description)
 
